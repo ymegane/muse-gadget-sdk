@@ -276,7 +276,7 @@ static void sensors_task(void *arg) {
 }
 
 void m5stack_cores3_ltr553_init(void) {
-    if (xTaskCreate(sensors_task, "ltr553", 3072, NULL, 2, NULL) != pdPASS) {
+    if (xTaskCreate(sensors_task, "ltr553", 4096, NULL, 2, NULL) != pdPASS) {
         ESP_LOGE(TAG, "failed to start the light sensor task");
     }
 }
