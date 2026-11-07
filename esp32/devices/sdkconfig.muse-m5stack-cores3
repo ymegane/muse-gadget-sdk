@@ -59,11 +59,14 @@ CONFIG_BSP_LCD_DRAW_BUF_DOUBLE=y
 CONFIG_MUSE_CJK_FONT=y
 
 # The front GC0308 camera for camera.capture: esp_video on the DVP port at
-# 640x480 YUYV (the sensor driver's S3 default), JPEG-compressed in software.
+# 320x240 YUYV, JPEG-compressed in software. At 640x480 the DVP task, copying
+# the DMA buffer into PSRAM, fell behind with Wi-Fi up and frames came out in
+# shuffled horizontal bands; 320x240 at 20 fps is a third of the data rate.
 CONFIG_MUSE_CORES3_CAMERA=y
 CONFIG_CAMERA_GC0308=y
-CONFIG_CAMERA_GC0308_DVP_YUV422_YUYV_640X480_16FPS=y
-CONFIG_CAMERA_GC0308_DVP_DEFAULT_FMT_YUV422_YUYV_640X480_16FPS=y
+# CONFIG_CAMERA_GC0308_DVP_YUV422_YUYV_640X480_16FPS is not set
+CONFIG_CAMERA_GC0308_DVP_YUV422_YUYV_320X240_20FPS=y
+CONFIG_CAMERA_GC0308_DVP_DEFAULT_FMT_YUV422_YUYV_320X240_20FPS=y
 CONFIG_CAMERA_XCLK_USE_LEDC=y
 # The DVP DMA buffer is allocated in internal RAM when the stream starts.
 # With Wi-Fi, BLE and the UI up, the largest free DMA-capable block is about

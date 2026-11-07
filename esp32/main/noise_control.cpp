@@ -1580,7 +1580,7 @@ static char *build_register_json(void) {
 #if CONFIG_MUSE_WATCHER_CAMERA
                 "Capture one still JPEG frame from the SenseCAP Watcher camera. "
 #elif CONFIG_MUSE_CORES3_CAMERA
-                "Capture one still 640x480 JPEG frame from the front camera. "
+                "Capture one still 320x240 JPEG frame from the front camera. "
 #else
                 "Capture one still 1280x960 JPEG frame from the device camera. "
 #endif

@@ -19,7 +19,9 @@
  * brings esp_video up on the board's I2C bus; the sensor's frames (YUYV by
  * default, or RGB565) are compressed in software with esp_new_jpeg, as the
  * S3 has no JPEG encoder. esp_video is up only while a capture runs, as on
- * the P4 3.5 (p4_csi_camera.c).
+ * the P4 3.5 (p4_csi_camera.c). The profile runs the sensor at 320x240: at
+ * 640x480 the DVP driver's copy out of its DMA buffer fell behind with Wi-Fi
+ * up, and frames came out in shuffled bands.
  */
 #include "cores3_camera.h"
 #include "camera.h"
@@ -48,7 +50,7 @@
 #define FRAME_WAIT_S  2        /* a stream that stops sending frames */
 #define GRAB_LIMIT_US (SETTLE_US + 3000000)   /* one that sends only broken ones */
 /* The JPEG has to fit in this: a 380 KB one, about 510 KB as base64, made
- * Muse time out (p4_csi_camera.c). A 640x480 frame is far under it. */
+ * Muse time out (p4_csi_camera.c). A camera frame here is far under it. */
 #define JPEG_MAX_BYTES (150 * 1024)
 static const int QUALITIES[] = { 80, 60, 40, 20 };
 
@@ -225,8 +227,8 @@ static void release(camera_frame_t *frame)
 
 static const camera_driver_t s_driver = {
     .name = "GC0308 (M5Stack CoreS3)",
-    .max_width = 640,
-    .max_height = 480,
+    .max_width = 320,
+    .max_height = 240,
     .init = init,
     .capture = capture,
     .release = release,
