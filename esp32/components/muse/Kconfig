@@ -293,6 +293,16 @@ menu "Muse"
             per capture. devices/sdkconfig.muse-waveshare-p4-lcd35-camera
             turns it on with the sensor's settings.
 
+    config MUSE_CORES3_CAMERA
+        bool "M5Stack CoreS3 camera capture"
+        depends on MUSE_BOARD_M5STACK_CORES3 && SPIRAM
+        default n
+        help
+            Enable the camera.capture Home Link command on the CoreS3's GC0308:
+            the BSP starts esp_video on the DVP port and esp_new_jpeg
+            compresses one frame per capture in software. Needs the sensor
+            driver too (CONFIG_CAMERA_GC0308); the CoreS3 profile turns both on.
+
     config MUSE_CJK_FONT
         bool "Show Chinese, Japanese and Korean in captions"
         depends on MUSE_ENABLED
