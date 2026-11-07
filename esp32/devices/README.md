@@ -193,6 +193,15 @@ The M5Stack CoreS3 reports its LTR-553 ambient light sensor through
 `sensors.read` as illuminance in lux. The sensor sits behind the front panel,
 so treat its readings as relative brightness rather than calibrated lux.
 
+The CoreS3's front GC0308 camera answers `camera.capture` with a 320x240 JPEG
+(`CONFIG_MUSE_CORES3_CAMERA`, on in its profile). The BSP's
+`bsp_camera_start()` brings esp_video up on the DVP port only while a capture
+runs, and the frame is compressed in software with esp_new_jpeg. A capture
+takes about 2 s, most of it letting exposure settle. At 640x480 the DVP
+driver's copy out of its DMA buffer falls behind with Wi-Fi up and the frame
+comes out in shuffled bands, and its 32 KB DMA buffer can't be allocated
+then, so the profile uses 320x240 and a 16 KB buffer.
+
 The experimental reTerminal Sticky Muse profile follows Seeed's `factory_fw`
 source: SSD1677 panel, GPIO45/46 power latch, GT911 touch (I2C0), PDM mic,
 BQ27220 battery gauge and SD card on the panel's SPI2 bus. Its UI is Muse's
@@ -390,8 +399,8 @@ click PWR to turn it back on. While Muse is running, holding PWR is a talk and
 never powers the board off: Muse turns off the AXP2101's power-off hold for as
 long as PWR is down. If the firmware has stopped, holding PWR for 10 s still
 cuts the power, unless it stopped during a PWR talk; RST always restarts it.
-Its 1 W speaker is quiet, so the volume starts at 100%. The camera, proximity
-sensor, IMU, RTC, SD card and Grove ports aren't used yet. It enumerates as the
+Its 1 W speaker is quiet, so the volume starts at 100%. The proximity sensor,
+IMU, RTC, SD card and Grove ports aren't used yet. It enumerates as the
 chip's own USB serial port: `tools/muse/board.sh flash cores3`. If esptool
 can't connect, hold RST for 3 s, until the green LED lights, to enter the
 bootloader.
