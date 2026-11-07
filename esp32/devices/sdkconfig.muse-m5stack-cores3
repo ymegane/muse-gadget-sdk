@@ -65,3 +65,7 @@ CONFIG_CAMERA_GC0308=y
 CONFIG_CAMERA_GC0308_DVP_YUV422_YUYV_640X480_16FPS=y
 CONFIG_CAMERA_GC0308_DVP_DEFAULT_FMT_YUV422_YUYV_640X480_16FPS=y
 CONFIG_CAMERA_XCLK_USE_LEDC=y
+# The DVP DMA buffer is allocated in internal RAM when the stream starts.
+# With Wi-Fi, BLE and the UI up, the largest free DMA-capable block is about
+# 21 KB, so the 32 KB default fails with "no mem for CAM DVP DMA receive buffer".
+CONFIG_CAM_CTRL_DVP_DMA_BUFFER_SIZE=16384
