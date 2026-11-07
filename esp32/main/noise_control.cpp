@@ -1567,6 +1567,13 @@ static char *build_register_json(void) {
                 "in seconds; a sensor with no recent reading is null.",
                 nullptr, nullptr);
 #endif
+#if CONFIG_HOMEHUB_M5STACK_CORES3_LTR553
+    add_command(commands, "sensors.read",
+                "Read the onboard ambient light sensor: illuminance in lux, "
+                "with its age in seconds. The sensor sits behind the screen's "
+                "top bezel, so readings are relative rather than calibrated.",
+                nullptr, nullptr);
+#endif
 
 #if CONFIG_MUSE_WATCHER_CAMERA || CONFIG_MUSE_P4_CSI_CAMERA
     add_command(commands, "camera.capture",

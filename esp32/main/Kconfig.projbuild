@@ -586,6 +586,16 @@ menu "ESP32 Device SDK"
             tenths of a degree Celsius. Waveshare's own SHTC3 example for this
             board subtracts 4 C, hence -40.
 
+    config HOMEHUB_M5STACK_CORES3_LTR553
+        bool "M5Stack CoreS3 onboard LTR-553 light sensor (sensors.read)"
+        depends on MUSE_BOARD_M5STACK_CORES3
+        default y
+        help
+            Poll the CoreS3's Lite-On LTR-553ALS ambient light sensor on the
+            BSP's internal I2C bus (SDA GPIO12, SCL GPIO11, address 0x23)
+            every 5 seconds, stepping its gain to keep the reading in range,
+            and answer sensors.read with the latest illuminance in lux.
+
     config HOMEHUB_DISPLAY_COMMANDS
         bool
         default y if HOMEHUB_DISPLAY

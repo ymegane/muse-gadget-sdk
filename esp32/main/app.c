@@ -84,6 +84,9 @@
 #if CONFIG_HOMEHUB_WAVESHARE_154G_SHTC3
 #include "waveshare_154g_shtc3.h"
 #endif
+#if CONFIG_HOMEHUB_M5STACK_CORES3_LTR553
+#include "m5stack_cores3_ltr553.h"
+#endif
 #if CONFIG_MUSE_WATCHER_CAMERA
 #include "boards/watcher_camera.h"
 #define camera_capture_base64 watcher_camera_capture
@@ -2027,6 +2030,11 @@ static cJSON *on_ws_command(
         return waveshare_154g_shtc3_command();
     }
 #endif
+#if CONFIG_HOMEHUB_M5STACK_CORES3_LTR553
+    if (strcmp(command, "sensors.read") == 0) {
+        return m5stack_cores3_ltr553_command();
+    }
+#endif
     if (strcmp(command, "device.reset_vm") == 0) {
         return queue_ws_control(WS_CONTROL_RESET_VM, NULL);
     }
@@ -2863,6 +2871,10 @@ void app_run(void) {
 #endif
 #if CONFIG_HOMEHUB_RETERMINAL_SHT4X
     reterminal_sht4x_init();
+#endif
+#if CONFIG_HOMEHUB_M5STACK_CORES3_LTR553
+    // Waits in its own task for the board's I2C bus.
+    m5stack_cores3_ltr553_init();
 #endif
 #if CONFIG_HOMEHUB_LED_BACKEND_RETERMINAL_UC8179 || \
     CONFIG_HOMEHUB_LED_BACKEND_RETERMINAL_SPECTRA6
