@@ -24,6 +24,7 @@
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
+#include "nvs.h"
 
 #include "muse_settings.h"
 #include "muse_state.h"
@@ -67,7 +68,8 @@ static const palette_t DARK = {
 /* Shared with any task: the latest data and when it came. */
 static portMUX_TYPE s_lock = portMUX_INITIALIZER_UNLOCKED;
 static muse_dashboard_data_t s_data;
-static int64_t s_received_us;   /* 0: nothing yet */
+static int64_t s_received_us;   /* 0: nothing since boot */
+static bool s_cached;           /* s_data is the last data from before boot */
 static bool s_dirty;
 static volatile bool s_active;  /* the tile is visible */
 
@@ -103,13 +105,50 @@ muse_dashboard_condition_t muse_dashboard_condition(const char *name)
     return MUSE_DASHBOARD_UNKNOWN;
 }
 
+/* The latest data survives a restart in NVS, so the tile has something to
+ * show at boot. It shows as old until new data comes: there is no telling
+ * how old it is. */
+#define NVS_NS "dashboard"
+#define NVS_KEY "last"
+
+static void save(const muse_dashboard_data_t *data)
+{
+    nvs_handle_t h;
+    if (nvs_open(NVS_NS, NVS_READWRITE, &h) != ESP_OK) return;
+    if (nvs_set_blob(h, NVS_KEY, data, sizeof(*data)) == ESP_OK) nvs_commit(h);
+    nvs_close(h);
+}
+
+static void load(void)
+{
+    nvs_handle_t h;
+    if (nvs_open(NVS_NS, NVS_READONLY, &h) != ESP_OK) return;
+    muse_dashboard_data_t d;
+    size_t len = sizeof(d);
+    /* A blob of another size is from a firmware with another layout. */
+    if (nvs_get_blob(h, NVS_KEY, &d, &len) == ESP_OK && len == sizeof(d)) {
+        d.rooms = d.rooms < 0 ? 0 : d.rooms > MUSE_DASHBOARD_ROOMS ? MUSE_DASHBOARD_ROOMS : d.rooms;
+        for (int i = 0; i < MUSE_DASHBOARD_ROOMS; i++) d.room[i].label[MUSE_DASHBOARD_LABEL_MAX - 1] = '\0';
+        d.updated[sizeof(d.updated) - 1] = '\0';
+        portENTER_CRITICAL(&s_lock);
+        s_data = d;
+        s_cached = true;
+        s_dirty = true;
+        portEXIT_CRITICAL(&s_lock);
+        ESP_LOGI(TAG, "showing the last data from before the restart");
+    }
+    nvs_close(h);
+}
+
 bool muse_dashboard_set(const muse_dashboard_data_t *data)
 {
     portENTER_CRITICAL(&s_lock);
     s_data = *data;
     s_received_us = esp_timer_get_time();
+    s_cached = false;
     s_dirty = true;
     portEXIT_CRITICAL(&s_lock);
+    save(data);
     return s_tile != NULL;
 }
 
@@ -380,6 +419,7 @@ void muse_dashboard_build(lv_obj_t *tile, int w, int h)
     lv_obj_add_flag(s_main_humid_dot, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(s_rule, LV_OBJ_FLAG_HIDDEN);
     ESP_LOGI(TAG, "tile %dx%d", w, h);
+    load();
 }
 
 static void color(lv_obj_t *o, uint32_t c)
@@ -487,7 +527,7 @@ void muse_dashboard_tick(lv_obj_t *tv, bool busy)
     bool is_fresh = fresh(now);
 
     portENTER_CRITICAL(&s_lock);
-    bool have = s_received_us != 0;
+    bool have = s_received_us != 0 || s_cached;
     bool redraw = s_dirty || (have && s_drawn_stale != !is_fresh);
     muse_dashboard_data_t d;
     if (redraw) {
