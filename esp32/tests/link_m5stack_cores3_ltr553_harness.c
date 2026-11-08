@@ -121,11 +121,11 @@ static void check_result(void) {
 
 static void check_auto_brightness(void) {
     // Log lux between the marks: dark is 0, bright is 1, their geometric
-    // mean (20 lux) is halfway.
+    // mean is halfway.
     assert(ambient_level(0.0f) == 0.0f);
     assert(ambient_level(AMBIENT_DARK_LUX) == 0.0f);
     assert(ambient_level(NAN) == 0.0f);
-    assert(near(ambient_level(20.0f), 0.5f));
+    assert(near(ambient_level(sqrtf(AMBIENT_DARK_LUX * AMBIENT_BRIGHT_LUX)), 0.5f));
     assert(ambient_level(AMBIENT_BRIGHT_LUX) == 1.0f);
     assert(ambient_level(60000.0f) == 1.0f);
     // A small move keeps the level; a big one or an end replaces it.

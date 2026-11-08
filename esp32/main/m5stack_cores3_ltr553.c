@@ -163,11 +163,10 @@ static cJSON *readings_result(const reading_t *light, int64_t now_us) {
 // ---- Auto brightness (host-tested) -------------------------------------------
 
 // The ambient level from 0 (dark room) to 1 (well-lit room), linear in log
-// lux between the two marks. The sensor sits behind the front glass and
-// reads a room lit for reading at a few tens of lux, so the bright mark is
-// low.
-#define AMBIENT_DARK_LUX        2.0f
-#define AMBIENT_BRIGHT_LUX      200.0f
+// lux between the two marks. The sensor sits deep in the bezel and reads
+// an evenly lit room at about 8-30 lux, so the bright mark is low.
+#define AMBIENT_DARK_LUX        1.0f
+#define AMBIENT_BRIGHT_LUX      40.0f
 // A new level replaces the one in use only when it moves this far (or hits
 // an end), so a reading hovering on a step doesn't flicker the backlight.
 #define AMBIENT_HYSTERESIS      0.1f
