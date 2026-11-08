@@ -95,7 +95,15 @@ static bool display_lock(int timeout_ms)
 
 static void set_brightness(int pct)
 {
-    bsp_display_brightness_set(pct);
+    /* The BSP turns 1-100% into DLDO1 at 2.5-3.3 V in 100 mV steps (0% is
+     * off), and logs every call. An ambient fade moves 1% a frame: write
+     * (and log) only when the step changes. */
+    static int s_step = -2;
+    int step = pct <= 0 ? -1 : (2500 + (pct > 100 ? 100 : pct) * 8 - 500) / 100;
+    if (step != s_step) {
+        s_step = step;
+        bsp_display_brightness_set(pct);
+    }
 }
 
 static esp_err_t audio_init(esp_codec_dev_handle_t *spk, esp_codec_dev_handle_t *mic)

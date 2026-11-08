@@ -44,6 +44,15 @@ void muse_ui_set_swipe_enabled(bool enabled);
 void muse_ui_preview_brightness(int pct);
 
 /*
+ * Optional, from any task: maps the brightness the user picked (10..100, or
+ * a slider's preview) to what the backlight gets, e.g. from an ambient light
+ * sensor. NULL (the default) applies the setting as it is. It runs in the
+ * LVGL task every frame while the screen is lit, so it must be cheap.
+ */
+typedef int (*muse_ui_brightness_fn)(int pct);
+void muse_ui_set_brightness_filter(muse_ui_brightness_fn fn);
+
+/*
  * display.draw_url, from any task. An image covers the face until a tap, a
  * talk, the menu or muse_ui_image_hide(). Pixels are RGB565, high byte first.
  * The size is false without PSRAM for the image or before the UI is up.

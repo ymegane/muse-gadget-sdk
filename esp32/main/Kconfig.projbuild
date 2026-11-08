@@ -596,6 +596,17 @@ menu "ESP32 Device SDK"
             every 5 seconds, stepping its gain to keep the reading in range,
             and answer sensors.read with the latest illuminance in lux.
 
+    config HOMEHUB_M5STACK_CORES3_AUTO_BRIGHTNESS
+        bool "Dim the CoreS3 backlight from the LTR-553 in a dark room"
+        depends on HOMEHUB_M5STACK_CORES3_LTR553
+        default y
+        help
+            Read the light sensor every second instead of every 5 and scale
+            the backlight with the room: the Brightness setting applies in a
+            well-lit room (40 lux at the sensor or more), sliding down to
+            10% in the dark (1 lux or less). Changes fade over about two
+            seconds; screen sleep still turns the backlight off.
+
     config HOMEHUB_DISPLAY_COMMANDS
         bool
         default y if HOMEHUB_DISPLAY

@@ -27,6 +27,10 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "stack_monitor.h"
+#include "sdkconfig.h"
+#if CONFIG_HOMEHUB_M5STACK_CORES3_AUTO_BRIGHTNESS
+#include "muse_ui.h"
+#endif
 
 // ---- Protocol (host-tested) -------------------------------------------------
 
@@ -156,9 +160,48 @@ static cJSON *readings_result(const reading_t *light, int64_t now_us) {
     return result;
 }
 
+// ---- Auto brightness (host-tested) -------------------------------------------
+
+// The ambient level from 0 (dark room) to 1 (well-lit room), linear in log
+// lux between the two marks. The sensor sits deep in the bezel and reads
+// an evenly lit room at about 8-30 lux, so the bright mark is low.
+#define AMBIENT_DARK_LUX        1.0f
+#define AMBIENT_BRIGHT_LUX      40.0f
+// A new level replaces the one in use only when it moves this far (or hits
+// an end), so a reading hovering on a step doesn't flicker the backlight.
+#define AMBIENT_HYSTERESIS      0.1f
+// Never dim below the brightness setting's own minimum.
+#define AMBIENT_MIN_PCT         10
+
+static inline float ambient_level(float lux) {
+    if (!(lux > AMBIENT_DARK_LUX)) return 0.0f;   // also NaN
+    if (lux >= AMBIENT_BRIGHT_LUX) return 1.0f;
+    return logf(lux / AMBIENT_DARK_LUX) / logf(AMBIENT_BRIGHT_LUX / AMBIENT_DARK_LUX);
+}
+
+// The level to use next, given the one in use and a fresh one.
+static inline float ambient_settle(float current, float fresh) {
+    if (fresh <= 0.0f || fresh >= 1.0f) return fresh;
+    return fabsf(fresh - current) >= AMBIENT_HYSTERESIS ? fresh : current;
+}
+
+// The backlight for the brightness setting at an ambient level: the setting
+// in a bright room, sliding down to the minimum in the dark.
+static inline int ambient_brightness(int pct, float level) {
+    if (pct <= AMBIENT_MIN_PCT) return pct;
+    if (level < 0.0f) level = 0.0f;
+    if (level > 1.0f) level = 1.0f;
+    return AMBIENT_MIN_PCT + (int)lroundf((float)(pct - AMBIENT_MIN_PCT) * level);
+}
+
 // ---- I2C driver --------------------------------------------------------------
 
+#if CONFIG_HOMEHUB_M5STACK_CORES3_AUTO_BRIGHTNESS
+// Every second, so the backlight follows a light switch promptly.
+#define POLL_MS         1000
+#else
 #define POLL_MS         5000
+#endif
 #define BUS_WAIT_MS     1000
 // A new result every 500 ms: wait for one at the new gain before reading.
 #define GAIN_SETTLE_MS  1200
@@ -170,6 +213,7 @@ static reading_t s_light;
 static i2c_master_dev_handle_t s_dev = NULL;
 static bool s_configured;
 static int s_gain_index = 2;   // 4x: indoor light without stepping
+static float s_level = -1.0f;  // ambient level in use; -1 before a reading
 
 static esp_err_t write_reg(uint8_t reg, uint8_t value) {
     const uint8_t bytes[] = {reg, value};
@@ -230,9 +274,17 @@ static bool poll_once(bool *settle) {
     if (!ltr553_decode(raw, &ch0, &ch1, &gain_index)) return false;
     float lux = ltr553_lux(ch0, ch1, GAINS[gain_index].gain, LTR553_INT_MS);
     int64_t now = esp_timer_get_time();
+    float was = s_level;
+    float level = was < 0.0f ? ambient_level(lux) : ambient_settle(was, ambient_level(lux));
     taskENTER_CRITICAL(&s_lock);
     s_light = (reading_t){true, lux, now};
+    s_level = level;
     taskEXIT_CRITICAL(&s_lock);
+#if CONFIG_HOMEHUB_M5STACK_CORES3_AUTO_BRIGHTNESS
+    if (level != was) {
+        ESP_LOGI(TAG, "ambient %.1f lux: backlight level %.2f", lux, level);
+    }
+#endif
     // The lux above used the gain this result was measured with. Step only
     // from a result at the gain last set: an older one is from before it.
     if (gain_index != s_gain_index) {
@@ -275,7 +327,44 @@ static void sensors_task(void *arg) {
     }
 }
 
+#if CONFIG_HOMEHUB_M5STACK_CORES3_AUTO_BRIGHTNESS
+// The backlight's ambient level moves at most this much per second, so a
+// change in the room fades in over a couple of seconds.
+#define FADE_PER_S      0.5f
+// A gap longer than this between frames means the screen slept: catch up
+// with the room at once instead of fading from before.
+#define FADE_GAP_US     (1000LL * 1000)
+
+// The UI's brightness filter: runs in the LVGL task every lit frame.
+static int auto_brightness(int pct) {
+    static float shown = -1.0f;
+    static int64_t last_us;
+    float level;
+    int64_t at_us;
+    taskENTER_CRITICAL(&s_lock);
+    level = s_level;
+    at_us = s_light.at_us;
+    taskEXIT_CRITICAL(&s_lock);
+    int64_t now = esp_timer_get_time();
+    if (level < 0.0f || now - at_us > STALE_US) {
+        shown = -1.0f;   // no sensor: the setting as it is
+        return pct;
+    }
+    if (shown < 0.0f || now - last_us > FADE_GAP_US) {
+        shown = level;
+    } else {
+        float step = FADE_PER_S * (float)(now - last_us) / 1e6f;
+        shown = level > shown ? fminf(level, shown + step) : fmaxf(level, shown - step);
+    }
+    last_us = now;
+    return ambient_brightness(pct, shown);
+}
+#endif
+
 void m5stack_cores3_ltr553_init(void) {
+#if CONFIG_HOMEHUB_M5STACK_CORES3_AUTO_BRIGHTNESS
+    muse_ui_set_brightness_filter(auto_brightness);
+#endif
     if (xTaskCreate(sensors_task, "ltr553", 4096, NULL, 2, NULL) != pdPASS) {
         ESP_LOGE(TAG, "failed to start the light sensor task");
     }

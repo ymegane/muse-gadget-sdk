@@ -214,6 +214,7 @@ static float s_next_settings_tick;
 static bool s_dark;
 static int s_brightness = -1;       /* last applied */
 static int s_preview_brightness = -1;
+static volatile muse_ui_brightness_fn s_brightness_filter;
 static int s_shown_page = -1;
 static int s_shown_speaker = -1;
 static muse_mode_t s_last_mode = MUSE_MODE_COUNT;
@@ -1643,7 +1644,8 @@ static bool update_sleep(void)
                 target = s_preview_brightness;
             }
         }
-        apply_brightness(target);
+        muse_ui_brightness_fn filter = s_brightness_filter;
+        apply_brightness(filter ? filter(target) : target);
     }
     return s_dark;
 }
@@ -2260,10 +2262,16 @@ void muse_ui_set_swipe_enabled(bool enabled)
     s_next_settings_tick = 0;
 }
 
+void muse_ui_set_brightness_filter(muse_ui_brightness_fn fn)
+{
+    s_brightness_filter = fn;
+}
+
 void muse_ui_preview_brightness(int pct)
 {
     s_preview_brightness = pct;
-    apply_brightness(pct);
+    muse_ui_brightness_fn filter = s_brightness_filter;
+    apply_brightness(filter ? filter(pct) : pct);
 }
 
 bool muse_ui_image_size(int *w, int *h)
