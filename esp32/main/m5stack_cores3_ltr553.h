@@ -17,7 +17,10 @@
 // The M5Stack CoreS3's ambient light sensor: a Lite-On LTR-553ALS on the
 // BSP's internal I2C bus, the one the AXP2101 and touch share. A background
 // task reads it every 5 seconds, steps its gain to keep the reading in range,
-// and keeps the latest illuminance; sensors.read answers with that.
+// and keeps the latest illuminance; sensors.read answers with that. With
+// CONFIG_HOMEHUB_M5STACK_CORES3_AUTO_BRIGHTNESS it reads every second and
+// dims the backlight in a dark room: the brightness setting becomes the
+// level for a well-lit room.
 
 #pragma once
 

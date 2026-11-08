@@ -117,6 +117,7 @@ Muse に「このデバイスで使えるコマンドを一覧で教えて」と
 - **Muse の返事は無音で正常**：ESP32 版ファームは Muse から返事を文字でもらい、字幕の表示に合わせて無音を再生する（upstream の [#243](https://github.com/facebookincubator/muse-gadget-sdk/issues/243)、声の返事は [#14](https://github.com/facebookincubator/muse-gadget-sdk/issues/14) で検討中）。画面に SPEAKING と出ても音は出ない
   - スピーカーが鳴るかは、USB シリアルで `m` を 1 文字送ると内蔵の MP3 を再生するので、それで確かめる
 - 照度センサー（LTR-553）は `sensors.read`、前面カメラ（GC0308）は `camera.capture`（320x240 の JPEG）で使える。近接センサ・IMU・RTC・SDカード・Groveポートは SDK では未使用
+- 画面の明るさは照度センサーで自動調整する（`CONFIG_HOMEHUB_M5STACK_CORES3_AUTO_BRIGHTNESS`、既定オン）。設定の「Brightness」は明るい部屋（センサーで 200 lux 以上）での明るさになり、暗い部屋（2 lux 以下）では 10% まで下がる。変化は約2秒かけてフェードする
 - カメラは撮影のときだけ起動する（1回 約2秒）。Muse には画像が base64 で届く
 - 日本語の字幕はプロファイルで `CONFIG_MUSE_CJK_FONT=y` にして表示している
 - バッテリー内蔵 500mAh。Muse 実行中に PWR 長押ししても電源は切れない（トーク扱い）

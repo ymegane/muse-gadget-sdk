@@ -119,8 +119,32 @@ static void check_result(void) {
     cJSON_Delete(result);
 }
 
+static void check_auto_brightness(void) {
+    // Log lux between the marks: dark is 0, bright is 1, their geometric
+    // mean (20 lux) is halfway.
+    assert(ambient_level(0.0f) == 0.0f);
+    assert(ambient_level(AMBIENT_DARK_LUX) == 0.0f);
+    assert(ambient_level(NAN) == 0.0f);
+    assert(near(ambient_level(20.0f), 0.5f));
+    assert(ambient_level(AMBIENT_BRIGHT_LUX) == 1.0f);
+    assert(ambient_level(60000.0f) == 1.0f);
+    // A small move keeps the level; a big one or an end replaces it.
+    assert(ambient_settle(0.5f, 0.55f) == 0.5f);
+    assert(ambient_settle(0.5f, 0.65f) == 0.65f);
+    assert(ambient_settle(0.95f, 1.0f) == 1.0f);
+    assert(ambient_settle(0.05f, 0.0f) == 0.0f);
+    // The setting in a bright room, the minimum in the dark, between in between.
+    assert(ambient_brightness(100, 1.0f) == 100);
+    assert(ambient_brightness(100, 0.0f) == AMBIENT_MIN_PCT);
+    assert(ambient_brightness(100, 0.5f) == 55);
+    assert(ambient_brightness(50, 0.5f) == 30);
+    assert(ambient_brightness(AMBIENT_MIN_PCT, 1.0f) == AMBIENT_MIN_PCT);
+    assert(ambient_brightness(100, 2.0f) == 100);
+    assert(ambient_brightness(100, -1.0f) == AMBIENT_MIN_PCT);
+}
+
 int main(void) {
-    check_gains(); check_lux(); check_decode(); check_gain_steps(); check_result();
-    puts("PASS m5stack cores3 ltr553: gains, lux formula, decode, gain steps, result envelope, stale handling");
+    check_gains(); check_lux(); check_decode(); check_gain_steps(); check_result(); check_auto_brightness();
+    puts("PASS m5stack cores3 ltr553: gains, lux formula, decode, gain steps, result envelope, stale handling, auto brightness");
     return 0;
 }

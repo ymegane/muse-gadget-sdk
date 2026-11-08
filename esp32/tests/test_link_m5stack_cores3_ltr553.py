@@ -45,7 +45,7 @@ class LinkM5stackCores3Ltr553Test(unittest.TestCase):
         # empty and the harness supplies the fakes.
         fakes = out / "fakes"
         for header in ("driver/i2c_master.h", "esp_log.h", "esp_timer.h",
-                       "freertos/FreeRTOS.h", "freertos/task.h"):
+                       "freertos/FreeRTOS.h", "freertos/task.h", "sdkconfig.h"):
             (fakes / header).parent.mkdir(parents=True, exist_ok=True)
             (fakes / header).write_text("#pragma once\n")
         commands.append([
@@ -85,6 +85,9 @@ class LinkM5stackCores3Ltr553Test(unittest.TestCase):
         block = kconfig[start:kconfig.index("\n\n", start)]
         self.assertIn("depends on MUSE_BOARD_M5STACK_CORES3", block)
         self.assertIn("default y", block)
+        start = kconfig.index("config HOMEHUB_M5STACK_CORES3_AUTO_BRIGHTNESS")
+        block = kconfig[start:kconfig.index("\n\n", start)]
+        self.assertIn("depends on HOMEHUB_M5STACK_CORES3_LTR553", block)
         cmake = (ROOT / "main/CMakeLists.txt").read_text()
         self.assertIn('if(CONFIG_HOMEHUB_M5STACK_CORES3_LTR553)\n    list(APPEND GADGET_SRCS "m5stack_cores3_ltr553.c")', cmake)
 
