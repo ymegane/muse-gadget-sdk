@@ -1,0 +1,28 @@
+{
+    "updated_at": "2026-01-01T12:00:00+09:00",
+    "indoor": [
+        {
+            "label": "Room A",
+            "temperature_c": 24.0,
+            "humidity_pct": 45
+        },
+        {
+            "label": "Room B",
+            "temperature_c": 23.5,
+            "humidity_pct": 42
+        },
+        {
+            "label": "Room C",
+            "temperature_c": 21.8,
+            "humidity_pct": 51
+        }
+    ],
+    "outdoor": {
+        "temperature_c": 13.0,
+        "feels_like_c": 12.0,
+        "humidity_pct": 50,
+        "precipitation_probability_pct": 10,
+        "condition": "clear",
+        "is_day": true
+    }
+}
