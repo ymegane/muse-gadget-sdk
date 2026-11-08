@@ -59,6 +59,9 @@ CONFIG_BSP_LCD_DRAW_BUF_DOUBLE=y
 # Japanese, Chinese and Korean captions (Unifont, about 1.2 MB of flash;
 # the 4 MB app slots have room).
 CONFIG_MUSE_CJK_FONT=y
+# Anti-aliased Noto Sans SC (about 910 KB) instead of Unifont's 1-bit bitmaps:
+# smoother kana/kanji in captions and dashboard room names; GB2312 coverage.
+CONFIG_MUSE_CJK_FONT_NOTO=y
 
 # The front GC0308 camera for camera.capture: esp_video on the DVP port at
 # 320x240 YUYV, JPEG-compressed in software. At 640x480 the DVP task, copying
