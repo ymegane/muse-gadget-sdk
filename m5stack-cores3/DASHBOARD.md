@@ -15,7 +15,7 @@ Issue #4 / #5 の Phase 0。Muse 側でダッシュボード画像（320x240 JPE
 
 ペイロードの形は Issue #4 の案のまま。`condition` は
 `clear / partly_cloudy / cloudy / fog / drizzle / rain / snow / thunderstorm`。
-`is_day: false` で暗い配色と月のアイコンになる。`indoor` の先頭が大きく、残りは行で並ぶ。
+配色は昼夜とも暗い色（明るい画面は部屋で眩しいため。`--light` で昼だけ明るい配色）。`is_day: false` で太陽が月になる。`indoor` の先頭が大きく、残りは行で並ぶ。
 
 ラベルに日本語を使うときは CJK フォントが要る（`--font /path/to/NotoSansCJK-Regular.ttc`、
 または `fonts-noto-cjk` を入れると自動で拾う）。無ければ英数字のラベルにする。

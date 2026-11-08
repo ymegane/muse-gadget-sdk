@@ -54,16 +54,14 @@ LV_FONT_DECLARE(muse_font_cjk_16)
 #endif
 
 typedef struct {
-    uint32_t bg, panel, text, muted, accent, humid, sun, cloud, rain, line;
+    uint32_t bg, panel, text, muted, accent, humid, sun, moon, cloud, rain, line;
 } palette_t;
 
-static const palette_t DAY = {
-    0xf6f4ee, 0xffffff, 0x1c1e24, 0x6e727c, 0xe27828,
-    0x2878c8, 0xfab01e, 0xb4bcc8, 0x3278dc, 0xdedcd4,
-};
-static const palette_t NIGHT = {
+/* Dark day and night: a light screen glares in a room. is_day only picks
+ * the sun or the moon. */
+static const palette_t DARK = {
     0x10121c, 0x1e2230, 0xe8eaf0, 0x8c92a2, 0xffa05a,
-    0x6eaaf0, 0xece4be, 0x6e7688, 0x6ea0f0, 0x303444,
+    0x6eaaf0, 0xfab01e, 0xece4be, 0x6e7688, 0x6ea0f0, 0x303444,
 };
 
 /* Shared with any task: the latest data and when it came. */
@@ -249,7 +247,7 @@ static void sun(lv_obj_t *p, float cx, float cy, float r, const palette_t *c)
 
 static void moon(lv_obj_t *p, float cx, float cy, float r, const palette_t *c)
 {
-    blob(p, cx, cy, r * 0.7f, c->sun);
+    blob(p, cx, cy, r * 0.7f, c->moon);
     blob(p, cx + r * 0.38f, cy - r * 0.19f, r * 0.7f, c->panel);
 }
 
@@ -374,8 +372,8 @@ void muse_dashboard_build(lv_obj_t *tile, int w, int h)
 
     s_footer = text(tile, &lv_font_montserrat_14, pad, h - S(22), w - 2 * pad, LV_TEXT_ALIGN_RIGHT);
     lv_label_set_text(s_footer, "waiting for data");
-    lv_obj_set_style_bg_color(tile, lv_color_hex(NIGHT.bg), 0);
-    lv_obj_set_style_text_color(s_footer, lv_color_hex(NIGHT.muted), 0);
+    lv_obj_set_style_bg_color(tile, lv_color_hex(DARK.bg), 0);
+    lv_obj_set_style_text_color(s_footer, lv_color_hex(DARK.muted), 0);
     lv_obj_add_flag(s_panel, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(s_main_humid_dot, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(s_rule, LV_OBJ_FLAG_HIDDEN);
@@ -389,7 +387,7 @@ static void color(lv_obj_t *o, uint32_t c)
 
 static void render(const muse_dashboard_data_t *d, bool stale)
 {
-    const palette_t *c = d->outdoor && !d->is_day ? &NIGHT : &DAY;
+    const palette_t *c = &DARK;
     char buf[48], pct[12];
 
     lv_obj_set_style_bg_color(s_tile, lv_color_hex(c->bg), 0);

@@ -203,7 +203,7 @@ void dashboard_command_describe(cJSON *commands) {
         "shown large), \"outdoor\": {\"temperature_c\", \"feels_like_c\", "
         "\"humidity_pct\", \"precipitation_probability_pct\", \"condition\": "
         "clear|partly_cloudy|cloudy|fog|drizzle|rain|snow|thunderstorm, "
-        "\"is_day\": false for a night palette and a moon}. Every field is "
+        "\"is_day\": false for a moon instead of the sun}. Every field is "
         "optional; give indoor or outdoor.");
     cJSON *required = cJSON_AddObjectToObject(command, "required");
     cJSON *payload = cJSON_AddObjectToObject(required, "payload");
