@@ -128,6 +128,9 @@ endif()
 if(CONFIG_HOMEHUB_M5STACK_CORES3_LTR553)
     list(APPEND GADGET_SRCS "m5stack_cores3_ltr553.c")
 endif()
+if(CONFIG_HOMEHUB_DASHBOARD)
+    list(APPEND GADGET_SRCS "dashboard_command.c")
+endif()
 
 if(CONFIG_HOMEHUB_VOICE)
     list(APPEND GADGET_SRCS

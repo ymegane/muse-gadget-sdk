@@ -87,6 +87,9 @@
 #if CONFIG_HOMEHUB_M5STACK_CORES3_LTR553
 #include "m5stack_cores3_ltr553.h"
 #endif
+#if CONFIG_HOMEHUB_DASHBOARD
+#include "dashboard_command.h"
+#endif
 #if CONFIG_MUSE_WATCHER_CAMERA
 #include "boards/watcher_camera.h"
 #define camera_capture_base64 watcher_camera_capture
@@ -1995,6 +1998,11 @@ static cJSON *on_ws_command(
         cJSON *result = cJSON_CreateObject();
         cJSON_AddBoolToObject(result, "ok", true);
         return result;
+    }
+#endif
+#if CONFIG_HOMEHUB_DASHBOARD
+    if (strcmp(command, "display.show_dashboard") == 0) {
+        return dashboard_command(params);
     }
 #endif
 #if CONFIG_MUSE_WATCHER_CAMERA || CONFIG_MUSE_P4_CSI_CAMERA || CONFIG_MUSE_CORES3_CAMERA

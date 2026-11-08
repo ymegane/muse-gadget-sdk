@@ -50,6 +50,9 @@ extern "C" {
 #include "reterminal_battery.h"
 #endif
 #include "ota.h"
+#if CONFIG_HOMEHUB_DASHBOARD
+#include "dashboard_command.h"
+#endif
 #if CONFIG_MUSE_ENABLED
 extern "C" {
 #include "muse_state.h"
@@ -1542,6 +1545,10 @@ static char *build_register_json(void) {
                 "Set the speaker volume. Without volume, "
                 "reports the current one.",
                 nullptr, volume_optional);
+#endif
+
+#if CONFIG_HOMEHUB_DASHBOARD
+    dashboard_command_describe(commands);
 #endif
 
 #if CONFIG_HOMEHUB_SENSECAP_SENSORS
