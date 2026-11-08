@@ -58,6 +58,9 @@
 #if CONFIG_MUSE_WATCHER_CAMERA
 #include "boards/watcher_camera.h"
 #endif
+#if CONFIG_HOMEHUB_DASHBOARD
+#include "muse_dashboard.h"
+#endif
 
 static atomic_uint s_touch_talk_events;
 
@@ -440,6 +443,9 @@ static void check_sleep(void)
         return;
     }
     if (muse_voice_in_call()) return;
+#if CONFIG_HOMEHUB_DASHBOARD
+    if (muse_dashboard_keeps_awake()) return;   /* on USB power, the dashboard stays lit */
+#endif
     int after = muse_settings_sleep_s();
     float mode_t;
     if (after && !muse_state_asleep() && muse_state_mode(&mode_t) == MUSE_MODE_IDLE

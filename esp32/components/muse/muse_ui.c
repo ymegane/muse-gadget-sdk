@@ -47,6 +47,9 @@
 #include "muse_text.h"
 #include "muse_wifi.h"
 #include "muse_voice.h"
+#if CONFIG_HOMEHUB_DASHBOARD
+#include "muse_dashboard.h"
+#endif
 #if CONFIG_MUSE_VIDEO
 #include "muse_video.h"
 #endif
@@ -1146,7 +1149,12 @@ static void build_screen(void)
          * shows as a different-coloured square around the character. */
         lv_obj_set_style_bg_color(s_face, lv_color_black(), 0);
         lv_obj_set_style_bg_opa(s_face, LV_OPA_COVER, 0);
+#if CONFIG_HOMEHUB_DASHBOARD
+        s_settings = lv_tileview_add_tile(s_tv, 1, 0, LV_DIR_HOR);
+        muse_dashboard_build(lv_tileview_add_tile(s_tv, 2, 0, LV_DIR_LEFT), s_w, s_h);
+#else
         s_settings = lv_tileview_add_tile(s_tv, 1, 0, LV_DIR_LEFT);
+#endif
         lv_obj_add_event_cb(s_tv, tile_changed_cb, LV_EVENT_VALUE_CHANGED, NULL);
         face = s_face;
     }
@@ -2119,6 +2127,9 @@ static void frame_tick(lv_timer_t *timer)
     if (update_sleep()) {
         return;
     }
+#if CONFIG_HOMEHUB_DASHBOARD
+    muse_dashboard_tick(s_tv, s_image_dsc.data || muse_settings_ui_in_subpage());
+#endif
 #if CONFIG_MUSE_VIDEO
     if (muse_video_tick()) {
         muse_menu_close();
