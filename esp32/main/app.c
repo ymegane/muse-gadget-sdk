@@ -59,6 +59,9 @@
 #include "vm_connect.h"
 #include "noise_control.h"
 #include "image_fetch.h"
+#if CONFIG_HOMEHUB_DASHBOARD
+#include "dashboard_command.h"
+#endif
 #include "noise_tunnel.h"
 #include "led_status.h"
 #include "button.h"
@@ -1963,6 +1966,11 @@ static cJSON *on_ws_command(
         if (!url) return command_error("missing_param", "url is required");
         return queue_ws_control(WS_CONTROL_SET_VM, url);
     }
+#if CONFIG_HOMEHUB_DASHBOARD
+    if (strcmp(command, "display.show_dashboard") == 0) {
+        return dashboard_command(params);
+    }
+#endif
 #if CONFIG_HOMEHUB_DISPLAY_COMMANDS
     bool draw_file = strcmp(command, "display.draw_file") == 0;
     if (draw_file || strcmp(command, "display.draw_url") == 0) {

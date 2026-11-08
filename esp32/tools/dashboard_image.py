@@ -37,7 +37,8 @@ Payload (every field optional except what you want shown):
 
 `condition` is one of: clear, partly_cloudy, cloudy, fog, drizzle, rain,
 snow, thunderstorm. The first indoor entry is drawn large; the rest as rows.
-`is_day: false` switches to a dark palette and a moon.
+The palette is dark (pass --light for a light one in the daytime);
+`is_day: false` draws a moon instead of the sun.
 
 Usage:
     dashboard_image.py payload.json out.jpg [--width 320] [--height 240]
@@ -79,18 +80,20 @@ DAY = {
     "accent": (226, 120, 40),
     "humid": (40, 120, 200),
     "sun": (250, 176, 30),
+    "moon": (236, 228, 190),
     "cloud": (180, 188, 200),
     "rain": (50, 120, 220),
     "line": (222, 220, 212),
 }
 NIGHT = {
-    "bg": (16, 18, 28),
+    "bg": (0, 0, 0),
     "panel": (30, 34, 48),
     "text": (232, 234, 240),
     "muted": (140, 146, 162),
     "accent": (255, 160, 90),
     "humid": (110, 170, 240),
-    "sun": (236, 228, 190),  # the moon
+    "sun": (250, 176, 30),
+    "moon": (236, 228, 190),
     "cloud": (110, 118, 136),
     "rain": (110, 160, 240),
     "line": (48, 52, 68),
@@ -164,7 +167,7 @@ def draw_sun(d, cx, cy, r, c):
 
 
 def draw_moon(d, cx, cy, r, c):
-    d.ellipse([cx - r * 0.7, cy - r * 0.7, cx + r * 0.7, cy + r * 0.7], fill=c["sun"])
+    d.ellipse([cx - r * 0.7, cy - r * 0.7, cx + r * 0.7, cy + r * 0.7], fill=c["moon"])
     o = r * 0.38
     d.ellipse([cx - r * 0.7 + o, cy - r * 0.7 - o * 0.5,
                cx + r * 0.7 + o, cy + r * 0.7 - o * 0.5], fill=c["panel"])
@@ -231,11 +234,12 @@ def draw_weather_icon(d, cx, cy, r, condition, is_day, c):
 # ---- Layout ------------------------------------------------------------------
 
 
-def render(payload, width, height, fonts):
+def render(payload, width, height, fonts, light=False):
     outdoor = payload.get("outdoor") or {}
     indoor = payload.get("indoor") or []
     is_day = outdoor.get("is_day", True)
-    c = DAY if is_day else NIGHT
+    # Dark by default, as the firmware's dashboard: is_day only picks sun or moon.
+    c = DAY if light and is_day else NIGHT
 
     # Lay out on a 320x240 grid and scale everything else from it.
     s = min(width / 320, height / 240)
@@ -307,7 +311,7 @@ def render(payload, width, height, fonts):
         ly += px(20)
 
     # Footer: last update, so stale data is obvious.
-    foot = f"updated {fmt_time(payload.get('updated_at'))}"
+    foot = fmt_time(payload.get("updated_at"))
     ff = fonts.get(px(13))
     d.text((width - pad - text_w(d, foot, ff), height - px(22)), foot, font=ff, fill=c["muted"])
     return img
@@ -321,6 +325,8 @@ def main():
     parser.add_argument("--height", type=int, default=240)
     parser.add_argument("--font", help="TrueType/OpenType font for text")
     parser.add_argument("--bold-font", help="font for numbers (defaults to a bold one)")
+    parser.add_argument("--light", action="store_true",
+                        help="light palette in the daytime (default: always dark)")
     args = parser.parse_args()
 
     if args.payload == "-":
@@ -330,7 +336,7 @@ def main():
         with open(args.payload, encoding="utf-8") as f:
             payload = json.load(f)
 
-    img = render(payload, args.width, args.height, Fonts(args.font, args.bold_font))
+    img = render(payload, args.width, args.height, Fonts(args.font, args.bold_font), args.light)
     if args.out.lower().endswith((".jpg", ".jpeg")):
         img.save(args.out, "JPEG", quality=90, progressive=False)
     else:

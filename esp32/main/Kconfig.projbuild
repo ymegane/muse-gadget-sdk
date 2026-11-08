@@ -606,6 +606,44 @@ menu "ESP32 Device SDK"
             image: the display backends, and boards with the full UI, PSRAM
             for the image and a JPEG decoder in ROM or hardware.
 
+    config HOMEHUB_DASHBOARD
+        bool "Idle dashboard on the full UI (display.show_dashboard)"
+        depends on HOMEHUB_LED_BACKEND_MUSE && !MUSE_UI_FREEINK
+        default n
+        select LV_FONT_MONTSERRAT_36
+        select LV_FONT_MONTSERRAT_48
+        help
+            A dashboard tile after Settings with indoor climate and the
+            weather, which Muse sends with display.show_dashboard. While idle
+            on USB power with recent data, the UI slides back to it by itself
+            and the screen stays on; on battery nothing changes. Needs a touch
+            screen. Off, the firmware is unchanged.
+
+    config HOMEHUB_DASHBOARD_JAPANESE
+        bool "Dashboard labels in Japanese"
+        depends on HOMEHUB_DASHBOARD && MUSE_CJK_FONT
+        default n
+        help
+            The outdoor rows read 体感, 降水 and 湿度 instead of feels,
+            rain and hum.
+
+    config HOMEHUB_DASHBOARD_IDLE_S
+        int "Seconds idle before the dashboard comes back"
+        depends on HOMEHUB_DASHBOARD
+        range 5 3600
+        default 60
+        help
+            Shorter than the screen sleep setting, or half of that is used.
+
+    config HOMEHUB_DASHBOARD_FRESH_MIN
+        int "Minutes the dashboard's data stays current"
+        depends on HOMEHUB_DASHBOARD
+        range 1 1440
+        default 30
+        help
+            Older data is marked as old, no longer brings the dashboard back
+            and no longer keeps the screen on.
+
     config HOMEHUB_PRE_DVT_GPIO
         bool "Use pre-DVT GPIO assignments"
         depends on HOMEHUB_LED_BACKEND_PWM_RGB

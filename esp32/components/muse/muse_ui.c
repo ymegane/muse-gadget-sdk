@@ -47,6 +47,9 @@
 #include "muse_text.h"
 #include "muse_wifi.h"
 #include "muse_voice.h"
+#if CONFIG_HOMEHUB_DASHBOARD
+#include "muse_dashboard.h"
+#endif
 #if CONFIG_MUSE_VIDEO
 #include "muse_video.h"
 #endif
@@ -133,7 +136,13 @@ bool muse_ui_face_active(void)
     return s_face_active;
 }
 static lv_obj_t *s_settings;
-static lv_obj_t *s_dots[2];
+/* Tiles, and a page dot for each: Muse, Settings and the dashboard if on. */
+#if CONFIG_HOMEHUB_DASHBOARD
+#define UI_PAGES 3
+#else
+#define UI_PAGES 2
+#endif
+static lv_obj_t *s_dots[UI_PAGES];
 static lv_obj_t *s_wifi_icon;
 static lv_obj_t *s_ble_icon;
 static lv_obj_t *s_cover;
@@ -1146,7 +1155,12 @@ static void build_screen(void)
          * shows as a different-coloured square around the character. */
         lv_obj_set_style_bg_color(s_face, lv_color_black(), 0);
         lv_obj_set_style_bg_opa(s_face, LV_OPA_COVER, 0);
+#if CONFIG_HOMEHUB_DASHBOARD
+        s_settings = lv_tileview_add_tile(s_tv, 1, 0, LV_DIR_HOR);
+        muse_dashboard_build(lv_tileview_add_tile(s_tv, 2, 0, LV_DIR_LEFT), s_w, s_h);
+#else
         s_settings = lv_tileview_add_tile(s_tv, 1, 0, LV_DIR_LEFT);
+#endif
         lv_obj_add_event_cb(s_tv, tile_changed_cb, LV_EVENT_VALUE_CHANGED, NULL);
         face = s_face;
     }
@@ -1482,7 +1496,7 @@ static void build_overlays(void)
     lv_obj_t *scr = lv_screen_active();
 
     /* Page dots. */
-    for (int i = 0; i < 2 && s_tv; i++) {
+    for (int i = 0; i < UI_PAGES && s_tv; i++) {
         lv_obj_t *d = lv_obj_create(scr);
         lv_obj_remove_style_all(d);
         lv_obj_set_size(d, 8, 8);
@@ -1490,7 +1504,7 @@ static void build_overlays(void)
         lv_obj_set_style_bg_opa(d, LV_OPA_COVER, 0);
         lv_obj_set_style_bg_color(d, lv_color_hex(COLOR_DOT_OFF), 0);
         lv_obj_remove_flag(d, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_align(d, LV_ALIGN_BOTTOM_MID, i ? 8 : -8, -14);
+        lv_obj_align(d, LV_ALIGN_BOTTOM_MID, 16 * i - 8 * (UI_PAGES - 1), -14);
         s_dots[i] = d;
     }
 
@@ -1661,15 +1675,18 @@ static void update_chrome(float now)
     s_next_settings_tick = now + SETTINGS_TICK_S;
 
     if (s_tv) {
-        int page = lv_tileview_get_tile_active(s_tv) == s_settings;
+        lv_obj_t *active = lv_tileview_get_tile_active(s_tv);
+        /* Tiles in order: Muse, Settings, ... None is active until the first slide. */
+        int page = active ? (int)lv_obj_get_index(active) : 0;
+        bool settings = active == s_settings;
         bool subpage = muse_settings_ui_in_subpage();
-        s_swipe_enabled = !page || !subpage;
+        s_swipe_enabled = !settings || !subpage;
         update_tileview_swipe();
         int shown = page * 2 + subpage;
         if (shown != s_shown_page) {
-            for (int i = 0; i < 2; i++) {
+            for (int i = 0; i < UI_PAGES; i++) {
                 lv_obj_set_style_bg_color(s_dots[i], lv_color_hex(i == page ? COLOR_ACCENT : COLOR_DOT_OFF), 0);
-                lv_obj_set_flag(s_dots[i], LV_OBJ_FLAG_HIDDEN, page && subpage);
+                lv_obj_set_flag(s_dots[i], LV_OBJ_FLAG_HIDDEN, settings && subpage);
             }
             s_shown_page = shown;
         }
@@ -2119,6 +2136,9 @@ static void frame_tick(lv_timer_t *timer)
     if (update_sleep()) {
         return;
     }
+#if CONFIG_HOMEHUB_DASHBOARD
+    muse_dashboard_tick(s_tv, s_image_dsc.data || muse_settings_ui_in_subpage());
+#endif
 #if CONFIG_MUSE_VIDEO
     if (muse_video_tick()) {
         muse_menu_close();
