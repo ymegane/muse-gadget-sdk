@@ -427,7 +427,7 @@ void muse_dashboard_build(lv_obj_t *tile, int w, int h)
     /* Right of the page dots, which sit at the bottom centre. */
     s_footer = text(tile, &lv_font_montserrat_14, w / 2 + S(30), h - S(22), w / 2 - S(30) - pad,
                     LV_TEXT_ALIGN_RIGHT);
-    lv_label_set_text(s_footer, "--:--");
+    lv_label_set_text(s_footer, LV_SYMBOL_REFRESH " --:--");
     lv_obj_set_style_bg_color(tile, lv_color_hex(DARK.bg), 0);
     lv_obj_set_style_text_color(s_footer, lv_color_hex(DARK.muted), 0);
     lv_obj_add_flag(s_panel, LV_OBJ_FLAG_HIDDEN);
@@ -519,8 +519,8 @@ static void render(const muse_dashboard_data_t *d, bool stale)
         }
     }
 
-    /* When the data was made; orange once it is old. */
-    snprintf(buf, sizeof(buf), "%s", d->updated[0] ? d->updated : "--:--");
+    /* When the data was made, marked apart from the clock; orange once old. */
+    snprintf(buf, sizeof(buf), LV_SYMBOL_REFRESH " %s", d->updated[0] ? d->updated : "--:--");
     lv_label_set_text(s_footer, buf);
     color(s_footer, stale ? c->accent : c->muted);
     s_drawn_stale = stale;
