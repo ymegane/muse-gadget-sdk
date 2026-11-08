@@ -1676,7 +1676,8 @@ static void update_chrome(float now)
 
     if (s_tv) {
         lv_obj_t *active = lv_tileview_get_tile_active(s_tv);
-        int page = (int)lv_obj_get_index(active);   /* tiles in order: Muse, Settings, ... */
+        /* Tiles in order: Muse, Settings, ... None is active until the first slide. */
+        int page = active ? (int)lv_obj_get_index(active) : 0;
         bool settings = active == s_settings;
         bool subpage = muse_settings_ui_in_subpage();
         s_swipe_enabled = !settings || !subpage;
