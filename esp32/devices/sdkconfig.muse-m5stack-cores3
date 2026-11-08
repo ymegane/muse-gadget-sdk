@@ -26,6 +26,8 @@ CONFIG_MUSE_BOARD_M5STACK_CORES3=y
 CONFIG_MUSE_DEFAULT_VOLUME=100
 # Unused by Muse builds (the talk button confirms pairing); GPIO0 is I2S MCLK here.
 CONFIG_HOMEHUB_BUTTON_GPIO=0
+# Idle dashboard tile fed by display.show_dashboard (m5stack-cores3/DASHBOARD.md).
+CONFIG_HOMEHUB_DASHBOARD=y
 CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
 CONFIG_ESPTOOLPY_FLASHSIZE="16MB"
 CONFIG_ESPTOOLPY_FLASHMODE_DIO=y
@@ -72,6 +74,3 @@ CONFIG_CAMERA_XCLK_USE_LEDC=y
 # With Wi-Fi, BLE and the UI up, the largest free DMA-capable block is about
 # 21 KB, so the 32 KB default fails with "no mem for CAM DVP DMA receive buffer".
 CONFIG_CAM_CTRL_DVP_DMA_BUFFER_SIZE=16384
-
-# Idle dashboard tile fed by display.show_dashboard (see m5stack-cores3/DASHBOARD.md).
-CONFIG_HOMEHUB_DASHBOARD=y

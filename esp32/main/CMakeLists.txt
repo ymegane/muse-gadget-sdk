@@ -101,6 +101,9 @@ endif()
 if(CONFIG_MUSE_ENABLED)
     list(APPEND GADGET_SRCS "muse_glue.c")
 endif()
+if(CONFIG_HOMEHUB_DASHBOARD)
+    list(APPEND GADGET_SRCS "dashboard_command.c")
+endif()
 
 # image_fetch.c: the P4 has no JPEG decoder in ROM, so it uses the peripheral.
 # Kconfig is not loaded yet when requirements expand.
@@ -127,9 +130,6 @@ if(CONFIG_HOMEHUB_WAVESHARE_154G_SHTC3)
 endif()
 if(CONFIG_HOMEHUB_M5STACK_CORES3_LTR553)
     list(APPEND GADGET_SRCS "m5stack_cores3_ltr553.c")
-endif()
-if(CONFIG_HOMEHUB_DASHBOARD)
-    list(APPEND GADGET_SRCS "dashboard_command.c")
 endif()
 
 if(CONFIG_HOMEHUB_VOICE)

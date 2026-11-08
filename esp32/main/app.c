@@ -59,6 +59,9 @@
 #include "vm_connect.h"
 #include "noise_control.h"
 #include "image_fetch.h"
+#if CONFIG_HOMEHUB_DASHBOARD
+#include "dashboard_command.h"
+#endif
 #include "noise_tunnel.h"
 #include "led_status.h"
 #include "button.h"
@@ -86,9 +89,6 @@
 #endif
 #if CONFIG_HOMEHUB_M5STACK_CORES3_LTR553
 #include "m5stack_cores3_ltr553.h"
-#endif
-#if CONFIG_HOMEHUB_DASHBOARD
-#include "dashboard_command.h"
 #endif
 #if CONFIG_MUSE_WATCHER_CAMERA
 #include "boards/watcher_camera.h"
@@ -1966,6 +1966,11 @@ static cJSON *on_ws_command(
         if (!url) return command_error("missing_param", "url is required");
         return queue_ws_control(WS_CONTROL_SET_VM, url);
     }
+#if CONFIG_HOMEHUB_DASHBOARD
+    if (strcmp(command, "display.show_dashboard") == 0) {
+        return dashboard_command(params);
+    }
+#endif
 #if CONFIG_HOMEHUB_DISPLAY_COMMANDS
     bool draw_file = strcmp(command, "display.draw_file") == 0;
     if (draw_file || strcmp(command, "display.draw_url") == 0) {
@@ -1998,11 +2003,6 @@ static cJSON *on_ws_command(
         cJSON *result = cJSON_CreateObject();
         cJSON_AddBoolToObject(result, "ok", true);
         return result;
-    }
-#endif
-#if CONFIG_HOMEHUB_DASHBOARD
-    if (strcmp(command, "display.show_dashboard") == 0) {
-        return dashboard_command(params);
     }
 #endif
 #if CONFIG_MUSE_WATCHER_CAMERA || CONFIG_MUSE_P4_CSI_CAMERA || CONFIG_MUSE_CORES3_CAMERA
