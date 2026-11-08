@@ -114,6 +114,8 @@ Muse に「このデバイスで使えるコマンドを一覧で教えて」と
 - ユーザーボタンは無し。左側面の **PWR が push-to-talk 兼ペアリング確定**
 - 設定はタッチ画面（Muse の画面から左スワイプ）
 - スピーカーは 1W で音量小さめ。SDK側で初期音量 100%
+- **Muse の返事は無音で正常**：ESP32 版ファームは Muse から返事を文字でもらい、字幕の表示に合わせて無音を再生する（upstream の [#243](https://github.com/facebookincubator/muse-gadget-sdk/issues/243)、声の返事は [#14](https://github.com/facebookincubator/muse-gadget-sdk/issues/14) で検討中）。画面に SPEAKING と出ても音は出ない
+  - スピーカーが鳴るかは、USB シリアルで `m` を 1 文字送ると内蔵の MP3 を再生するので、それで確かめる
 - 照度センサー（LTR-553）は `sensors.read`、前面カメラ（GC0308）は `camera.capture`（320x240 の JPEG）で使える。近接センサ・IMU・RTC・SDカード・Groveポートは SDK では未使用
 - カメラは撮影のときだけ起動する（1回 約2秒）。Muse には画像が base64 で届く
 - 日本語の字幕はプロファイルで `CONFIG_MUSE_CJK_FONT=y` にして表示している
