@@ -54,6 +54,16 @@ LV_FONT_DECLARE(muse_font_cjk_16)
 #define CJK_FONT muse_font_cjk_16
 #endif
 
+#if CONFIG_HOMEHUB_DASHBOARD_JAPANESE
+#define LABEL_FEELS "\xE4\xBD\x93\xE6\x84\x9F"   /* 体感 */
+#define LABEL_RAIN "\xE9\x99\x8D\xE6\xB0\xB4"    /* 降水 */
+#define LABEL_HUMID "\xE6\xB9\xBF\xE5\xBA\xA6"   /* 湿度 */
+#else
+#define LABEL_FEELS "feels"
+#define LABEL_RAIN "rain"
+#define LABEL_HUMID "hum"
+#endif
+
 typedef struct {
     uint32_t bg, panel, text, muted, accent, humid, sun, moon, cloud, rain, line;
 } palette_t;
@@ -406,7 +416,7 @@ void muse_dashboard_build(lv_obj_t *tile, int w, int h)
     s_out_temp = text(s_panel, FONT_OUTDOOR, 0, S(76), pw, LV_TEXT_ALIGN_CENTER);
     for (int i = 0; i < 3; i++) {
         int y = S(126) + i * S(20);
-        s_out_name[i] = text(s_panel, &lv_font_montserrat_14, S(10), y, 0, LV_TEXT_ALIGN_LEFT);
+        s_out_name[i] = text(s_panel, label_font(), S(10), y - S(1), 0, LV_TEXT_ALIGN_LEFT);
         s_out_value[i] = text(s_panel, &lv_font_montserrat_16, pw - S(10) - S(60), y - S(1), S(60),
                               LV_TEXT_ALIGN_RIGHT);
     }
@@ -417,7 +427,7 @@ void muse_dashboard_build(lv_obj_t *tile, int w, int h)
     /* Right of the page dots, which sit at the bottom centre. */
     s_footer = text(tile, &lv_font_montserrat_14, w / 2 + S(30), h - S(22), w / 2 - S(30) - pad,
                     LV_TEXT_ALIGN_RIGHT);
-    lv_label_set_text(s_footer, "no data yet");
+    lv_label_set_text(s_footer, "--:--");
     lv_obj_set_style_bg_color(tile, lv_color_hex(DARK.bg), 0);
     lv_obj_set_style_text_color(s_footer, lv_color_hex(DARK.muted), 0);
     lv_obj_add_flag(s_panel, LV_OBJ_FLAG_HIDDEN);
@@ -484,19 +494,19 @@ static void render(const muse_dashboard_data_t *d, bool stale)
         int n = 0;
         if (!isnan(d->feels_like_c)) {
             fmt_temp(buf, sizeof(buf), d->feels_like_c, false);
-            lv_label_set_text(s_out_name[n], "feels");
+            lv_label_set_text(s_out_name[n], LABEL_FEELS);
             lv_label_set_text(s_out_value[n], buf);
             color(s_out_value[n++], c->text);
         }
         if (d->precipitation_pct >= 0) {
             fmt_pct(pct, sizeof(pct), d->precipitation_pct);
-            lv_label_set_text(s_out_name[n], "rain");
+            lv_label_set_text(s_out_name[n], LABEL_RAIN);
             lv_label_set_text(s_out_value[n], pct);
             color(s_out_value[n++], c->rain);
         }
         if (d->outdoor_humidity_pct >= 0) {
             fmt_pct(pct, sizeof(pct), d->outdoor_humidity_pct);
-            lv_label_set_text(s_out_name[n], "hum");
+            lv_label_set_text(s_out_name[n], LABEL_HUMID);
             lv_label_set_text(s_out_value[n], pct);
             color(s_out_value[n++], c->humid);
         }
@@ -509,8 +519,8 @@ static void render(const muse_dashboard_data_t *d, bool stale)
         }
     }
 
-    snprintf(buf, sizeof(buf), "%s %s", stale ? "old" : "updated",
-             d->updated[0] ? d->updated : "--:--");
+    /* When the data was made; orange once it is old. */
+    snprintf(buf, sizeof(buf), "%s", d->updated[0] ? d->updated : "--:--");
     lv_label_set_text(s_footer, buf);
     color(s_footer, stale ? c->accent : c->muted);
     s_drawn_stale = stale;

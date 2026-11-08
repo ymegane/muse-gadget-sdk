@@ -619,6 +619,14 @@ menu "ESP32 Device SDK"
             and the screen stays on; on battery nothing changes. Needs a touch
             screen. Off, the firmware is unchanged.
 
+    config HOMEHUB_DASHBOARD_JAPANESE
+        bool "Dashboard labels in Japanese"
+        depends on HOMEHUB_DASHBOARD && MUSE_CJK_FONT
+        default n
+        help
+            The outdoor rows read 体感, 降水 and 湿度 instead of feels,
+            rain and hum.
+
     config HOMEHUB_DASHBOARD_IDLE_S
         int "Seconds idle before the dashboard comes back"
         depends on HOMEHUB_DASHBOARD

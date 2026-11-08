@@ -311,7 +311,7 @@ def render(payload, width, height, fonts, light=False):
         ly += px(20)
 
     # Footer: last update, so stale data is obvious.
-    foot = f"updated {fmt_time(payload.get('updated_at'))}"
+    foot = fmt_time(payload.get("updated_at"))
     ff = fonts.get(px(13))
     d.text((width - pad - text_w(d, foot, ff), height - px(22)), foot, font=ff, fill=c["muted"])
     return img
