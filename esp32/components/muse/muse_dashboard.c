@@ -82,6 +82,8 @@ static lv_obj_t *s_row_label[MUSE_DASHBOARD_ROOMS - 1], *s_row_value[MUSE_DASHBO
 static lv_obj_t *s_panel, *s_icon, *s_out_temp;
 static lv_obj_t *s_out_name[3], *s_out_value[3];
 static lv_obj_t *s_footer;
+static lv_obj_t *s_clock;
+static int s_clock_min = -1;    /* minute of the day shown */
 static int s_drawn_icon = -1;   /* condition * 2 + is_day last drawn */
 static bool s_drawn_stale;
 
@@ -409,6 +411,9 @@ void muse_dashboard_build(lv_obj_t *tile, int w, int h)
                               LV_TEXT_ALIGN_RIGHT);
     }
 
+    /* The time, counted on from updated_at: the device has no clock of its own. */
+    s_clock = text(tile, &lv_font_montserrat_20, x0, h - S(28), 0, LV_TEXT_ALIGN_LEFT);
+    lv_obj_set_style_text_color(s_clock, lv_color_hex(DARK.text), 0);
     /* Right of the page dots, which sit at the bottom centre. */
     s_footer = text(tile, &lv_font_montserrat_14, w / 2 + S(30), h - S(22), w / 2 - S(30) - pad,
                     LV_TEXT_ALIGN_RIGHT);
@@ -536,6 +541,21 @@ void muse_dashboard_tick(lv_obj_t *tv, bool busy)
     }
     portEXIT_CRITICAL(&s_lock);
     if (redraw) render(&d, !is_fresh);
+
+    portENTER_CRITICAL(&s_lock);
+    int64_t at = s_received_us;
+    int base = s_data.updated_s;
+    portEXIT_CRITICAL(&s_lock);
+    int min = -1;
+    if (at && base >= 0) {
+        min = (int)(((int64_t)base + (now - at) / 1000000) % 86400) / 60;
+    }
+    if (min != s_clock_min) {
+        char clock[8] = "";
+        if (min >= 0) snprintf(clock, sizeof(clock), "%02d:%02d", min / 60, min % 60);
+        lv_label_set_text(s_clock, clock);
+        s_clock_min = min;
+    }
 
     s_active = lv_tileview_get_tile_active(tv) == s_tile;
     if (s_active || busy || !is_fresh || muse_state_on_battery() || muse_state_asleep()) return;

@@ -48,6 +48,7 @@ int main(void) {
                  "\"precipitation_probability_pct\":10,\"condition\":\"clear\",\"is_day\":true}}",
                  &d, &error));
     assert(strcmp(d.updated, "12:00") == 0);
+    assert(d.updated_s == 12 * 3600);
     assert(d.rooms == 2);
     assert(strcmp(d.room[0].label, "Room A") == 0);
     assert(fabsf(d.room[1].temperature_c - 23.5f) < 0.01f);
@@ -63,7 +64,15 @@ int main(void) {
     assert(d.rooms == 0 && d.outdoor && fabsf(d.outdoor_c + 3.5f) < 0.01f);
     assert(isnan(d.feels_like_c) && d.outdoor_humidity_pct == -1 && d.precipitation_pct == -1);
     assert(!d.is_day && d.condition == MUSE_DASHBOARD_UNKNOWN);
-    assert(d.updated[0] == '\0');
+    assert(d.updated[0] == '\0' && d.updated_s == -1);
+
+    // The clock's seconds into the day; a malformed time sets no clock.
+    assert(parse("{\"updated_at\":\"2026-01-01T23:59:58+09:00\",\"indoor\":[{}]}", &d, &error));
+    assert(d.updated_s == 23 * 3600 + 59 * 60 + 58);
+    assert(parse("{\"updated_at\":\"2026-01-01T07:05Z\",\"indoor\":[{}]}", &d, &error));
+    assert(d.updated_s == 7 * 3600 + 5 * 60);
+    assert(parse("{\"updated_at\":\"2026-01-01T25:00:00\",\"indoor\":[{}]}", &d, &error));
+    assert(d.updated_s == -1);
 
     // Out-of-range values read as missing; at most MUSE_DASHBOARD_ROOMS rooms.
     assert(parse("{\"indoor\":[{\"temperature_c\":500,\"humidity_pct\":120},{},{},{},{},{}]}",

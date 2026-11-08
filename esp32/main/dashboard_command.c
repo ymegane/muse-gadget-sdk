@@ -85,12 +85,26 @@ static bool dashboard_parse(const cJSON *payload, muse_dashboard_data_t *out,
         return false;
     }
 
-    // "2026-01-01T12:00:00+09:00" -> "12:00", as the sender's local time.
+    // "2026-01-01T12:00:00+09:00" -> "12:00", as the sender's local time, and
+    // 43200 s into the day, which the device's clock counts on from.
+    out->updated_s = -1;
     const cJSON *at = cJSON_GetObjectItemCaseSensitive(payload, "updated_at");
     if (cJSON_IsString(at) && at->valuestring && strlen(at->valuestring) >= 16 &&
         at->valuestring[10] == 'T') {
-        memcpy(out->updated, at->valuestring + 11, 5);
+        const char *t = at->valuestring + 11;
+        memcpy(out->updated, t, 5);
         out->updated[5] = '\0';
+        int f[3] = {0, 0, 0};
+        int n = t[5] == ':' && strlen(t) >= 8 ? 3 : 2;
+        bool ok = t[2] == ':';
+        for (int i = 0; ok && i < n; i++) {
+            const char *p = t + 3 * i;
+            ok = p[0] >= '0' && p[0] <= '9' && p[1] >= '0' && p[1] <= '9';
+            if (ok) f[i] = (p[0] - '0') * 10 + (p[1] - '0');
+        }
+        if (ok && f[0] < 24 && f[1] < 60 && f[2] < 60) {
+            out->updated_s = f[0] * 3600 + f[1] * 60 + f[2];
+        }
     }
 
     const cJSON *indoor = cJSON_GetObjectItemCaseSensitive(payload, "indoor");
@@ -198,7 +212,7 @@ void dashboard_command_describe(cJSON *commands) {
         "30 minutes old, so send fresh data every 10 to 15 minutes. A tap or "
         "a talk leaves it. On battery it never comes back by itself. "
         "Does not wake a sleeping screen. payload is a JSON object: "
-        "{\"updated_at\": ISO 8601 local time, \"indoor\": [{\"label\", "
+        "{\"updated_at\": ISO 8601 local time, which also sets the clock shown, \"indoor\": [{\"label\", "
         "\"temperature_c\", \"humidity_pct\"}, ...] (up to 4; the first is "
         "shown large), \"outdoor\": {\"temperature_c\", \"feels_like_c\", "
         "\"humidity_pct\", \"precipitation_probability_pct\", \"condition\": "

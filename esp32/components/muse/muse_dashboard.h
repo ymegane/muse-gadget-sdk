@@ -52,6 +52,7 @@ typedef struct {
 
 typedef struct {
     char updated[8];   /* "HH:MM" from updated_at, or empty */
+    int updated_s;     /* updated_at's time of day in seconds, or -1: the clock */
     int rooms;         /* entries used in room[]; the first is drawn large */
     muse_dashboard_room_t room[MUSE_DASHBOARD_ROOMS];
     bool outdoor;      /* the outdoor fields below were given */
