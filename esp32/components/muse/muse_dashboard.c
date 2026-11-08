@@ -370,8 +370,10 @@ void muse_dashboard_build(lv_obj_t *tile, int w, int h)
                               LV_TEXT_ALIGN_RIGHT);
     }
 
-    s_footer = text(tile, &lv_font_montserrat_14, pad, h - S(22), w - 2 * pad, LV_TEXT_ALIGN_RIGHT);
-    lv_label_set_text(s_footer, "waiting for data");
+    /* Right of the page dots, which sit at the bottom centre. */
+    s_footer = text(tile, &lv_font_montserrat_14, w / 2 + S(30), h - S(22), w / 2 - S(30) - pad,
+                    LV_TEXT_ALIGN_RIGHT);
+    lv_label_set_text(s_footer, "no data yet");
     lv_obj_set_style_bg_color(tile, lv_color_hex(DARK.bg), 0);
     lv_obj_set_style_text_color(s_footer, lv_color_hex(DARK.muted), 0);
     lv_obj_add_flag(s_panel, LV_OBJ_FLAG_HIDDEN);
@@ -462,7 +464,7 @@ static void render(const muse_dashboard_data_t *d, bool stale)
         }
     }
 
-    snprintf(buf, sizeof(buf), "%supdated %s", stale ? "old data, " : "",
+    snprintf(buf, sizeof(buf), "%s %s", stale ? "old" : "updated",
              d->updated[0] ? d->updated : "--:--");
     lv_label_set_text(s_footer, buf);
     color(s_footer, stale ? c->accent : c->muted);
