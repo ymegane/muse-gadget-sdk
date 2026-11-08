@@ -71,7 +71,7 @@ typedef struct {
 /* Dark day and night: a light screen glares in a room. is_day only picks
  * the sun or the moon. */
 static const palette_t DARK = {
-    0x10121c, 0x1e2230, 0xe8eaf0, 0x8c92a2, 0xffa05a,
+    0x000000, 0x1e2230, 0xe8eaf0, 0x8c92a2, 0xffa05a,
     0x6eaaf0, 0xfab01e, 0xece4be, 0x6e7688, 0x6ea0f0, 0x303444,
 };
 
