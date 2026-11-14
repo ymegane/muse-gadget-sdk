@@ -46,6 +46,16 @@ static bool s_pmu;
 static esp_err_t init(void)
 {
     ESP_RETURN_ON_ERROR(bsp_i2c_init(), TAG, "i2c init");
+#if CONFIG_HOMEHUB_M5STACK_CORES3_LTR553
+    /* The LTR-553 light sensor sits on the camera's rails (AW9523 CAMERA_EN,
+     * ALDO3/BLDO1/BLDO2), which the BSP otherwise switches on only for the
+     * first capture. Without this the sensor NACKs after a power-on until the
+     * camera is used once. */
+    esp_err_t rails = bsp_feature_enable(BSP_FEATURE_CAMERA, true);
+    if (rails != ESP_OK) {
+        ESP_LOGW(TAG, "camera rails for the light sensor: %s", esp_err_to_name(rails));
+    }
+#endif
 #if CONFIG_MUSE_CORES3_CAMERA
     /* The GC0308 shares the I2C bus; it starts on the first capture. */
     cores3_camera_register();
