@@ -15,8 +15,12 @@
  */
 
 #include "muse_ui.h"
+#if CONFIG_MUSE_LATEST_REPLY
+#include "muse_latest_reply.h"
+#endif
 
 #include <stdatomic.h>
+#include "muse_options_ui.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -34,6 +38,7 @@
 #include "src/misc/lv_area_private.h"            /* lv_area_intersect, for the ring */
 
 #include "muse_ble.h"
+#include "muse_audio.h"
 #include "muse_board.h"
 #include "muse_input.h"
 #include "muse_chat.h"
@@ -42,6 +47,9 @@
 #include "muse_link.h"
 #include "muse_mem.h"
 #include "muse_menu.h"
+#if CONFIG_MUSE_MIRROR
+#include "muse_mirror.h"
+#endif
 #include "muse_pixel.h"
 #include "muse_settings.h"
 #include "muse_settings_ui.h"
@@ -52,6 +60,7 @@
 #if CONFIG_HOMEHUB_DASHBOARD
 #include "muse_dashboard.h"
 #endif
+#include "muse_volume_swipe.h"
 #if CONFIG_MUSE_VIDEO
 #include "muse_video.h"
 #endif
@@ -83,6 +92,8 @@ static const char *TAG = "muse_ui";
 #define SPEAKER_PX 64
 #define SPEAKER_GROW_PX 8       /* how much the speaker button swells while held */
 #define SPEAKER_HOLD_MS 400     /* LVGL's long press */
+#define VOLUME_HINT_HOLD_MS 450
+#define VOLUME_HINT_FADE_MS 250
 
 #define COLOR_DIM 0x8b84a8
 #define COLOR_CAPTION 0xd8d2ff
@@ -115,6 +126,10 @@ static lv_indev_t *s_indev;
 static lv_obj_t *s_tv;
 static bool s_swipe_enabled = true;
 static bool s_touch_talk_down;
+static volatile bool s_volume_swiping;   /* input task: suppress screen-hold PTT */
+static muse_volume_swipe_t s_volume_swipe;
+static lv_obj_t *s_volume_hint;
+static lv_obj_t *s_volume_percent, *s_volume_bar;
 #if CONFIG_MUSE_VOICE_NOTE_TOGGLE
 static bool s_note_listening;   /* a toggled note is recording: keep its face up */
 #endif
@@ -126,7 +141,7 @@ static lv_obj_t *s_face;
 static void update_tileview_swipe(void)
 {
     if (!s_tv) return;
-    bool enabled = s_swipe_enabled && !s_touch_talk_down;
+    bool enabled = s_swipe_enabled && !s_touch_talk_down && !s_volume_swiping;
 #if CONFIG_MUSE_VOICE_NOTE_TOGGLE
     enabled = enabled && !s_note_listening;
 #endif
@@ -139,10 +154,13 @@ static void tile_changed_cb(lv_event_t *e)
 {
     lv_obj_t *tv = lv_event_get_target(e);
     s_face_active = (lv_tileview_get_tile_active(tv) == s_face);
+#if CONFIG_MUSE_LATEST_REPLY
+    muse_latest_reply_set_visible(lv_tileview_get_tile_active(tv) == muse_latest_reply_tile());
+#endif
 }
 
 /* From any task: the face tile is the currently visible tile. */
-bool muse_ui_face_active(void)
+static bool face_shown(void)
 {
 #if CONFIG_MUSE_APP_VIEW
     if (muse_app_view_tick()) {
@@ -151,17 +169,38 @@ bool muse_ui_face_active(void)
 #endif
     return s_face_active;
 }
+
+bool muse_ui_face_active(void)
+{
+    /* The option picker covers it too: a held touch chooses, it doesn't talk. */
+    return !muse_options_ui_open() && face_shown();
+}
+
+bool muse_ui_volume_swiping(void)
+{
+    return s_volume_swiping;
+}
 static lv_obj_t *s_settings;
-/* Tiles, and a page dot for each: Muse, Settings and the dashboard if on. */
-#if CONFIG_HOMEHUB_DASHBOARD
-#define UI_PAGES 3
+#if CONFIG_MUSE_LATEST_REPLY
+#define LATEST_REPLY_TILES 1
 #else
-#define UI_PAGES 2
+#define LATEST_REPLY_TILES 0
 #endif
-static lv_obj_t *s_dots[UI_PAGES];
+#if CONFIG_HOMEHUB_DASHBOARD
+#define DASHBOARD_TILES 1
+#else
+#define DASHBOARD_TILES 0
+#endif
+/* Tiles, and a page dot for each: the latest reply if on, Muse, Settings and
+ * the dashboard if on. */
+#define PAGE_DOTS (2 + LATEST_REPLY_TILES + DASHBOARD_TILES)
+static lv_obj_t *s_dots[PAGE_DOTS];
 static lv_obj_t *s_wifi_icon;
 static lv_obj_t *s_ble_icon;
 static lv_obj_t *s_cover;
+#if CONFIG_MUSE_REPLY_NOTIFY
+static lv_obj_t *s_flash;   /* white veil that blinks when a reply arrives */
+#endif
 static lv_obj_t *s_pair;
 static lv_obj_t *s_pair_code;
 static lv_obj_t *s_pair_title;
@@ -568,7 +607,7 @@ static void build_button_icons(lv_obj_t *face)
 static void on_canvas_clicked(lv_event_t *e)
 {
     (void)e;
-    muse_state_make_happy();
+    if (!s_volume_swipe.claimed) muse_state_make_happy();
 }
 
 static const lv_font_t *font_pick(const lv_font_t *full, const lv_font_t *compact)
@@ -627,7 +666,7 @@ static int caption_band_h(void)
 #define SMALL_BAND_Y ((s_tall || s_tv) ? -30 : -3)
 #endif
 
-#if CONFIG_MUSE_CJK_FONT || CONFIG_MUSE_LATIN_FONT
+#if CONFIG_MUSE_CJK_FONT || CONFIG_MUSE_LATIN_FONT || CONFIG_MUSE_LATEST_REPLY
 /* A caption's font off a small screen's band: caption_font(), or with
  * CONFIG_MUSE_LATIN_FONT, Unifont's 8x16 for the whole of a caption with
  * accented letters and no CJK. */
@@ -646,7 +685,9 @@ static const lv_font_t *caption_font_for(const char *text)
     (void)text;
     return caption_font();
 }
+#endif
 
+#if CONFIG_MUSE_CJK_FONT || CONFIG_MUSE_LATIN_FONT
 #if CONFIG_MUSE_CJK_FONT
 #define CJK_BAND_PAD 6          /* px each side of a CJK caption on a small screen */
 #define CJK_LINE_SPACE 4
@@ -1189,6 +1230,129 @@ static void apply_text_size(void)
 }
 #endif
 
+/* Only the face background and avatar register this callback. Buttons, reply
+ * paging, Settings, images and the wake cover keep their own touch handling. */
+static bool volume_swipe_allowed(void)
+{
+    if (!muse_board->audio_init || !s_face_active || !s_swipe_enabled ||
+        s_touch_talk_down || muse_state_asleep() || muse_menu_is_open() ||
+        s_image_dsc.data || !lv_obj_has_flag(s_pair, LV_OBJ_FLAG_HIDDEN) ||
+        !lv_obj_has_flag(s_cover, LV_OBJ_FLAG_HIDDEN) ||
+        (s_tv && lv_obj_get_scroll_x(s_tv) != lv_obj_get_x(s_face))) return false;
+#if CONFIG_MUSE_SMALL_FULL_REPLY
+    if (s_full_reply) return false;
+#endif
+#if CONFIG_MUSE_VOICE_NOTE_TOGGLE
+    if (s_note_listening) return false;
+#endif
+#if CONFIG_MUSE_VIDEO
+    if (muse_video_is_open()) return false;
+#endif
+    return true;
+}
+
+static void volume_hint_opacity(void *obj, int32_t opacity)
+{
+    lv_obj_set_style_opa(obj, opacity, 0);
+}
+
+static void volume_hint_faded(lv_anim_t *animation)
+{
+    lv_obj_add_flag(animation->var, LV_OBJ_FLAG_HIDDEN);
+}
+
+static void show_volume_hint(int volume)
+{
+    /* A fresh drag immediately restores the indicator, even midway through
+     * the previous drag's fade. Children inherit the panel's opacity. */
+    lv_anim_delete(s_volume_hint, volume_hint_opacity);
+    lv_obj_set_style_opa(s_volume_hint, LV_OPA_COVER, 0);
+    lv_label_set_text_fmt(s_volume_percent, "%d%%", volume);
+    lv_bar_set_value(s_volume_bar, volume, LV_ANIM_OFF);
+    lv_obj_remove_flag(s_volume_hint, LV_OBJ_FLAG_HIDDEN);
+}
+
+static void finish_volume_swipe(void)
+{
+    if (s_volume_swiping) {
+        /* Preview uses the codec only; persist once, rather than writing flash
+         * on every touch sample. Reaching zero mutes separately below. */
+        if (s_volume_swipe.value != muse_settings_volume()) {
+            muse_settings_set_volume(s_volume_swipe.value);
+        }
+        lv_anim_t fade;
+        lv_anim_init(&fade);
+        lv_anim_set_var(&fade, s_volume_hint);
+        lv_anim_set_exec_cb(&fade, volume_hint_opacity);
+        lv_anim_set_values(&fade, LV_OPA_COVER, LV_OPA_TRANSP);
+        lv_anim_set_delay(&fade, VOLUME_HINT_HOLD_MS);
+        lv_anim_set_duration(&fade, VOLUME_HINT_FADE_MS);
+        lv_anim_set_completed_cb(&fade, volume_hint_faded);
+        lv_anim_start(&fade);
+    }
+    s_volume_swipe.tracking = false;
+    s_volume_swiping = false;
+    update_tileview_swipe();
+}
+
+static void on_volume_swipe(lv_event_t *e)
+{
+    /* Do not treat bubbled events from a child control as background drags. */
+    if (lv_event_get_target(e) != lv_event_get_current_target(e)) return;
+    lv_event_code_t code = lv_event_get_code(e);
+    lv_point_t point;
+    switch (code) {
+    case LV_EVENT_PRESSED:
+        s_volume_swipe = (muse_volume_swipe_t){0};
+        if (volume_swipe_allowed()) {
+            lv_indev_get_point(lv_indev_active(), &point);
+            muse_volume_swipe_begin(&s_volume_swipe, point.x, point.y, s_h, muse_settings_volume());
+        }
+        break;
+    case LV_EVENT_PRESSING:
+        if (!s_volume_swipe.tracking) break;
+        if (!volume_swipe_allowed()) {
+            finish_volume_swipe();
+            break;
+        }
+        lv_indev_get_point(lv_indev_active(), &point);
+        int old_value = s_volume_swipe.value;
+        if (muse_volume_swipe_move(&s_volume_swipe, point.x, point.y)) {
+            s_volume_swiping = true;
+            update_tileview_swipe();
+            if (old_value != s_volume_swipe.value) muse_audio_set_volume(s_volume_swipe.value);
+            bool speaker_on = muse_settings_speaker_on();
+            if ((s_volume_swipe.value == 0 && speaker_on) ||
+                (s_volume_swipe.value > old_value && !speaker_on)) {
+                speaker_on = s_volume_swipe.value > 0;
+                muse_settings_set_speaker_on(speaker_on);
+                if (s_speaker) show_speaker(speaker_on);
+            }
+            show_volume_hint(s_volume_swipe.value);
+        }
+        break;
+    case LV_EVENT_LONG_PRESSED:
+        /* A stationary hold belongs to push-to-talk on some round boards. */
+        if (!s_volume_swipe.claimed) s_volume_swipe.tracking = false;
+        break;
+    case LV_EVENT_RELEASED:
+    case LV_EVENT_PRESS_LOST:
+        finish_volume_swipe();
+        break;
+    default:
+        break;
+    }
+}
+
+#if CONFIG_MUSE_WAKEWORD_ENABLE
+/* Here rather than at the top, after the last assert: builds without the
+ * wake word then compile this file exactly as before (assert() records its
+ * line number). */
+#include "muse_wakeword_glue.h"
+static lv_obj_t *s_listen_icon;   /* status line: "Hey Muse" listening is on */
+static int s_shown_listen = -1;   /* 0 hidden, 1 on but paused, 2 listening */
+#endif
+
 static void build_screen(void)
 {
 #if CONFIG_MUSE_LATIN_FONT
@@ -1206,7 +1370,12 @@ static void build_screen(void)
         lv_obj_set_style_bg_color(s_tv, lv_color_black(), 0);
         lv_obj_set_style_bg_opa(s_tv, LV_OPA_COVER, 0);
         lv_obj_set_scrollbar_mode(s_tv, LV_SCROLLBAR_MODE_OFF);
+#if CONFIG_MUSE_LATEST_REPLY
+        muse_latest_reply_build(s_tv, caption_font_for);
+        s_face = lv_tileview_add_tile(s_tv, 1, 0, LV_DIR_HOR);
+#else
         s_face = lv_tileview_add_tile(s_tv, 0, 0, LV_DIR_RIGHT);
+#endif
         /* It never scrolls, but LVGL would size its scrollbars from all its
          * children every time it draws any part of it. */
         lv_obj_set_scrollbar_mode(s_face, LV_SCROLLBAR_MODE_OFF);
@@ -1215,13 +1384,21 @@ static void build_screen(void)
         lv_obj_set_style_bg_color(s_face, lv_color_black(), 0);
         lv_obj_set_style_bg_opa(s_face, LV_OPA_COVER, 0);
 #if CONFIG_HOMEHUB_DASHBOARD
-        s_settings = lv_tileview_add_tile(s_tv, 1, 0, LV_DIR_HOR);
-        muse_dashboard_build(lv_tileview_add_tile(s_tv, 2, 0, LV_DIR_LEFT), s_w, s_h);
+        s_settings = lv_tileview_add_tile(s_tv, 1 + LATEST_REPLY_TILES, 0, LV_DIR_HOR);
+        muse_dashboard_build(lv_tileview_add_tile(s_tv, 2 + LATEST_REPLY_TILES, 0, LV_DIR_LEFT),
+                             s_w, s_h);
 #else
-        s_settings = lv_tileview_add_tile(s_tv, 1, 0, LV_DIR_LEFT);
+        s_settings = lv_tileview_add_tile(s_tv, 1 + LATEST_REPLY_TILES, 0, LV_DIR_LEFT);
 #endif
+        lv_tileview_set_tile(s_tv, s_face, LV_ANIM_OFF);
         lv_obj_add_event_cb(s_tv, tile_changed_cb, LV_EVENT_VALUE_CHANGED, NULL);
         face = s_face;
+        if (muse_board->audio_init) {
+            /* Horizontal drags chain to the tileview; vertical drags belong
+             * to volume rather than scrolling the avatar's children. */
+            lv_obj_remove_flag(face, LV_OBJ_FLAG_SCROLLABLE);
+            lv_obj_add_event_cb(face, on_volume_swipe, LV_EVENT_ALL, NULL);
+        }
     }
 
     if (!s_small && muse_board->no_ring) {
@@ -1279,6 +1456,9 @@ static void build_screen(void)
     s_muse_y = s_big_y;
     lv_obj_add_flag(s_canvas, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(s_canvas, on_canvas_clicked, LV_EVENT_CLICKED, NULL);
+    if (muse_board->touch && muse_board->audio_init) {
+        lv_obj_add_event_cb(s_canvas, on_volume_swipe, LV_EVENT_ALL, NULL);
+    }
     if (s_ring) {
         /* The canvas's black corners reach the bezel; keep the ring on top. */
         lv_obj_move_foreground(s_ring);
@@ -1296,6 +1476,11 @@ static void build_screen(void)
     lv_obj_align(status, LV_ALIGN_TOP_MID, 0, muse_board->rim_controls ? 40 : s_small ? 1 : 20 + s_dy);
     s_wifi_icon = make_label(status, &lv_font_montserrat_14, COLOR_DIM);
     s_ble_icon = make_label(status, &lv_font_montserrat_14, COLOR_DIM);
+#if CONFIG_MUSE_WAKEWORD_ENABLE
+    /* Whenever the wake word is on, so it's never listening unseen. */
+    s_listen_icon = make_mic(status, s_small ? 10 : 14);
+    lv_obj_add_flag(s_listen_icon, LV_OBJ_FLAG_HIDDEN);
+#endif
     s_power_lbl = make_label(status, &lv_font_unscii_8, COLOR_DIM);
 
     /* The compact layout leaves the state to the avatar and the caption,
@@ -1554,8 +1739,40 @@ static void build_overlays(void)
 {
     lv_obj_t *scr = lv_screen_active();
 
+    if (muse_board->touch && muse_board->audio_init) {
+        int bar_height = s_h / 3;
+        if (bar_height > 160) bar_height = 160;
+        int pad = s_small ? 6 : 10;
+        const lv_font_t *font = font_pick(&lv_font_montserrat_20, FONT_COMPACT);
+        s_volume_hint = lv_obj_create(lv_layer_top());
+        lv_obj_remove_style_all(s_volume_hint);
+        lv_obj_set_size(s_volume_hint, s_small ? 48 : 64,
+                        bar_height + lv_font_get_line_height(font) + pad * 3);
+        lv_obj_set_style_bg_color(s_volume_hint, lv_color_hex(0x201a35), 0);
+        lv_obj_set_style_bg_opa(s_volume_hint, LV_OPA_COVER, 0);
+        lv_obj_set_style_pad_all(s_volume_hint, pad, 0);
+        lv_obj_set_style_radius(s_volume_hint, 16, 0);
+        lv_obj_align(s_volume_hint, LV_ALIGN_CENTER, s_w / 4, 0);
+        lv_obj_remove_flag(s_volume_hint, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
+
+        s_volume_percent = make_label(s_volume_hint, font, COLOR_LIT);
+        lv_obj_align(s_volume_percent, LV_ALIGN_TOP_MID, 0, 0);
+        lv_obj_remove_flag(s_volume_percent, LV_OBJ_FLAG_CLICKABLE);
+        s_volume_bar = lv_bar_create(s_volume_hint);
+        lv_obj_set_size(s_volume_bar, s_small ? 12 : 20, bar_height);
+        lv_obj_align(s_volume_bar, LV_ALIGN_BOTTOM_MID, 0, 0);
+        lv_bar_set_orientation(s_volume_bar, LV_BAR_ORIENTATION_VERTICAL);
+        lv_bar_set_range(s_volume_bar, 0, 100);
+        lv_obj_set_style_bg_color(s_volume_bar, lv_color_hex(0x3a3052), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(s_volume_bar, lv_color_hex(COLOR_ACCENT), LV_PART_INDICATOR);
+        lv_obj_set_style_radius(s_volume_bar, LV_RADIUS_CIRCLE, LV_PART_MAIN);
+        lv_obj_set_style_radius(s_volume_bar, LV_RADIUS_CIRCLE, LV_PART_INDICATOR);
+        lv_obj_remove_flag(s_volume_bar, LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_add_flag(s_volume_hint, LV_OBJ_FLAG_HIDDEN);
+    }
+
     /* Page dots. */
-    for (int i = 0; i < UI_PAGES && s_tv; i++) {
+    for (int i = 0; i < PAGE_DOTS && s_tv; i++) {
         lv_obj_t *d = lv_obj_create(scr);
         lv_obj_remove_style_all(d);
         lv_obj_set_size(d, 8, 8);
@@ -1563,7 +1780,7 @@ static void build_overlays(void)
         lv_obj_set_style_bg_opa(d, LV_OPA_COVER, 0);
         lv_obj_set_style_bg_color(d, lv_color_hex(COLOR_DOT_OFF), 0);
         lv_obj_remove_flag(d, LV_OBJ_FLAG_CLICKABLE);
-        lv_obj_align(d, LV_ALIGN_BOTTOM_MID, 16 * i - 8 * (UI_PAGES - 1), -14);
+        lv_obj_align(d, LV_ALIGN_BOTTOM_MID, (2 * i - (PAGE_DOTS - 1)) * 8, -14);
         s_dots[i] = d;
     }
 
@@ -1613,6 +1830,12 @@ static void build_overlays(void)
         update_control_hints(MUSE_MODE_BOOT);
     }
 
+#if CONFIG_MUSE_HATCH
+    /* Answers go out through the voice task, which display-only boards don't run. */
+    if (muse_board->touch && (muse_board->audio_init || muse_board->mic_init))
+        muse_options_ui_start(s_w, s_h, muse_board->round, caption_font());
+#endif
+
     /* BLE pairing code, or the Muse app's ask for the talk button: a centred
      * column in one typeface, the code large. The small card grows with the hint. */
     s_pair = lv_obj_create(lv_layer_top());
@@ -1641,6 +1864,17 @@ static void build_overlays(void)
     /* Wraps: "bottom right button" is wider than the AIPI's card. */
     lv_obj_set_width(s_pair_hint, lv_pct(100));
     lv_label_set_long_mode(s_pair_hint, LV_LABEL_LONG_MODE_WRAP);
+
+#if CONFIG_MUSE_REPLY_NOTIFY
+    /* Reply flash: drawn over everything, never takes a touch. */
+    s_flash = lv_obj_create(lv_layer_top());
+    lv_obj_remove_style_all(s_flash);
+    lv_obj_set_size(s_flash, lv_pct(100), lv_pct(100));
+    lv_obj_set_style_bg_color(s_flash, lv_color_white(), 0);
+    lv_obj_set_style_bg_opa(s_flash, LV_OPA_TRANSP, 0);
+    lv_obj_remove_flag(s_flash, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_flag(s_flash, LV_OBJ_FLAG_HIDDEN);
+#endif
 
     /* Sleep cover: swallows the waking touch. */
     s_cover = lv_obj_create(lv_layer_top());
@@ -1680,6 +1914,9 @@ static bool update_sleep(void)
     bool asleep = muse_state_asleep();
     if (asleep && !s_dark) {
         muse_menu_close();
+#if CONFIG_MUSE_LATEST_REPLY
+        if (s_tv) lv_tileview_set_tile(s_tv, s_face, LV_ANIM_OFF);
+#endif
         apply_brightness(0);
         if (muse_board->panel_sleep) {
             muse_board->panel_sleep(true);
@@ -1739,6 +1976,9 @@ static const char *idle_name(muse_wifi_state_t wifi)
 
 static void update_chrome(float now)
 {
+    muse_options_ui_tick(face_shown() && !muse_voice_in_call() && !s_image_dsc.data &&
+                         muse_state_mode(NULL) != MUSE_MODE_LISTENING &&
+                         lv_obj_has_flag(s_pair, LV_OBJ_FLAG_HIDDEN));
     if (now < s_next_settings_tick) {
         return;
     }
@@ -1746,21 +1986,26 @@ static void update_chrome(float now)
 
     if (s_tv) {
         lv_obj_t *active = lv_tileview_get_tile_active(s_tv);
-        /* Tiles in order: Muse, Settings, ... None is active until the first slide. */
-        int page = active ? (int)lv_obj_get_index(active) : 0;
+        /* Tiles in order: latest reply (if on), Muse, Settings, dashboard (if on). */
+        int selected = (int)lv_obj_get_index(active ? active : s_face);
         bool settings = active == s_settings;
         bool subpage = muse_settings_ui_in_subpage();
         s_swipe_enabled = !settings || !subpage;
         update_tileview_swipe();
-        int shown = page * 2 + subpage;
+        bool hide_dots = settings && subpage;
+        int shown = selected * 2 + subpage;
         if (shown != s_shown_page) {
-            for (int i = 0; i < UI_PAGES; i++) {
-                lv_obj_set_style_bg_color(s_dots[i], lv_color_hex(i == page ? COLOR_ACCENT : COLOR_DOT_OFF), 0);
-                lv_obj_set_flag(s_dots[i], LV_OBJ_FLAG_HIDDEN, settings && subpage);
+            for (int i = 0; i < PAGE_DOTS; i++) {
+                lv_obj_set_style_bg_color(s_dots[i], lv_color_hex(i == selected ? COLOR_ACCENT : COLOR_DOT_OFF), 0);
+                lv_obj_set_flag(s_dots[i], LV_OBJ_FLAG_HIDDEN, hide_dots);
             }
             s_shown_page = shown;
         }
+#if CONFIG_MUSE_LATEST_REPLY
+        muse_settings_ui_tick(settings);
+#else
         muse_settings_ui_tick(lv_obj_get_scroll_x(s_tv) > 0);
+#endif
     }
 
     /* Joining, the icon blinks: the compact layout has no state label. */
@@ -1780,6 +2025,17 @@ static void update_chrome(float now)
         lv_label_set_text(s_ble_icon, ble);
         lv_obj_set_style_text_color(s_ble_icon, lv_color_hex(b.state == MUSE_BLE_CONNECTED ? COLOR_ACCENT : COLOR_DIM), 0);
     }
+
+#if CONFIG_MUSE_WAKEWORD_ENABLE
+    /* Lit while the wake word is listening, dim while it's on but paused
+     * (Muse talking, a button turn, the runner stopped). */
+    int listen = !muse_wakeword_enabled() ? 0 : muse_wakeword_listening() ? 2 : 1;
+    if (listen != s_shown_listen) {
+        lv_obj_set_flag(s_listen_icon, LV_OBJ_FLAG_HIDDEN, listen == 0);
+        color_mic(s_listen_icon, listen == 2 ? COLOR_ACCENT : COLOR_DIM);
+        s_shown_listen = listen;
+    }
+#endif
 
     /* Paired, the name has done its job (picking this one out in the Muse
      * app) and the speaker button has replies to mute. */
@@ -2202,6 +2458,9 @@ static void frame_tick(lv_timer_t *timer)
         if (s_tv) lv_tileview_set_tile(s_tv, settings ? s_settings : s_face, LV_ANIM_OFF);
     }
 #endif
+#if CONFIG_MUSE_LATEST_REPLY
+    muse_latest_reply_tick();
+#endif
     update_control_hints(muse_state_mode(NULL));
     if (s_snapshot) {
         s_snapshot = false;
@@ -2229,7 +2488,18 @@ static void frame_tick(lv_timer_t *timer)
         return;
     }
 #if CONFIG_HOMEHUB_DASHBOARD
-    muse_dashboard_tick(s_tv, s_image_dsc.data || muse_settings_ui_in_subpage());
+    muse_dashboard_tick(s_tv, s_image_dsc.data || muse_settings_ui_in_subpage() || muse_options_ui_open());
+#endif
+#if CONFIG_MUSE_REPLY_NOTIFY
+    {
+        float flash = muse_state_flash_level();
+        if (flash > 0) {
+            lv_obj_set_style_bg_opa(s_flash, (lv_opa_t)(flash * 170), 0);
+            lv_obj_remove_flag(s_flash, LV_OBJ_FLAG_HIDDEN);
+        } else if (!lv_obj_has_flag(s_flash, LV_OBJ_FLAG_HIDDEN)) {
+            lv_obj_add_flag(s_flash, LV_OBJ_FLAG_HIDDEN);
+        }
+    }
 #endif
 #if CONFIG_MUSE_VIDEO
     if (muse_video_tick()) {
@@ -2252,7 +2522,13 @@ static void frame_tick(lv_timer_t *timer)
     if (s_image_dsc.data) {
         return;   /* the image covers the face */
     }
-    if (s_tv && lv_obj_get_scroll_x(s_tv) != 0) {
+    if (s_tv && lv_obj_get_scroll_x(s_tv) !=
+#if CONFIG_MUSE_LATEST_REPLY
+        s_w
+#else
+        0
+#endif
+    ) {
         /* Off screen, or sliding to or from settings: hold still so the
          * slide gets the whole frame time. */
         return;
@@ -2266,7 +2542,8 @@ static void frame_tick(lv_timer_t *timer)
     s_level += (level - s_level) * (level > s_level ? 0.6f : 0.2f);
 
     muse_pose_t pose = {
-        .mode = mode,
+        /* A pending reply keeps its green progress ring, but isn't speech. */
+        .mode = mode == MUSE_MODE_SPEAKING && muse_voice_reply_waiting() ? MUSE_MODE_IDLE : mode,
         .t = now,
         .mode_t = mode_t,
         .level = s_level,
@@ -2332,6 +2609,10 @@ esp_err_t muse_ui_start(void)
     }
     build_overlays();
     lv_timer_create(frame_tick, muse_board->frame_ms, NULL);
+#if CONFIG_MUSE_MIRROR
+    lv_indev_t *mirror_pointer = muse_mirror_start(disp);
+    if (mirror_pointer) lv_indev_add_event_cb(mirror_pointer, on_any_press, LV_EVENT_PRESSED, NULL);
+#endif
     s_ready = true;
     muse_board->display_unlock();
 
